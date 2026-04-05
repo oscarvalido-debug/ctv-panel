@@ -2673,6 +2673,7 @@ async function procesarExcelOrain(tipo, input){
       }
 
       // Save to Supabase
+      preview.innerHTML=`<div style="color:var(--amber);padding:10px;font-size:13px">⏳ Paso 2/2: Guardando ${count} registros en Supabase...</div>`;
       await guardarOrainEnSupabase(tipo);
       renderOrainUploadCards();
       preview.innerHTML=`<div style="background:rgba(61,207,142,.1);border:0.5px solid rgba(61,207,142,.25);border-radius:10px;padding:12px;color:var(--green);font-size:13px">
