@@ -2554,9 +2554,10 @@ async function procesarExcelOrain(tipo, input){
   const reader=new FileReader();
   reader.onload=async e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
+      // Use cellDates:false for speed, convert dates manually
+      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:false});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
 
       // Find header row
       const headerIdx=allRows.findIndex(row=>row&&row.some(c=>{
@@ -2613,6 +2614,11 @@ async function procesarExcelOrain(tipo, input){
         const toISO=v=>{
           if(!v) return null;
           if(v instanceof Date) return v.toISOString();
+          // Handle Excel serial date numbers
+          if(typeof v==='number' && v>40000){
+            const d=new Date((v-25569)*86400*1000);
+            return isNaN(d)?null:d.toISOString();
+          }
           const d=new Date(v); return isNaN(d)?null:d.toISOString();
         };
         allRows.forEach(row=>{
