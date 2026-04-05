@@ -2470,6 +2470,67 @@ function renderOrainVista(){
     :'<div style="font-size:13px;color:var(--green)">✓ Todas las máquinas comunican correctamente</div>'}
   </div>`;
 
+  // Ranking por islas — solo en vista general
+  if(orainIslaActiva==='general'){
+    const rankingIslas = ORAIN_ISLAS.map(isla=>{
+      const m = orainData.maquinas.filter(x=>x.isla===isla);
+      const total = m.length;
+      if(!total) return null;
+      const conOrain = m.filter(x=>x.estado_orain==='INSTALADO').length;
+      const conTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&x.ultimo_audit).length;
+      const pendOrain = m.filter(x=>x.estado_orain==='PENDIENTE').length;
+      const pendTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&!x.ultimo_audit).length;
+      // Score: positivos - negativos, sobre el máximo posible
+      const maxPts = total * 2;
+      const pts = (conOrain + conTele) - (pendOrain + pendTele);
+      const score = Math.round((pts / maxPts) * 100);
+      const pctOrain = Math.round(conOrain/total*100);
+      const pctTele  = conOrain>0?Math.round(conTele/conOrain*100):0;
+      return {isla, total, conOrain, conTele, pendOrain, pendTele, score, pctOrain, pctTele,
+        icon: ISLAS.find(i=>i.id===isla)?.icon||'🏝️'};
+    }).filter(Boolean).sort((a,b)=>b.score-a.score);
+
+    const medals = ['🥇','🥈','🥉','4️⃣'];
+    const scoreColor = s => s>=75?'var(--green)':s>=50?'#ff8c00':s>=25?'var(--amber)':'var(--red)';
+
+    html+=`<div class="orain-card" style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;font-family:var(--ff);color:#ff8c00;margin-bottom:12px">🏆 Ranking por isla</div>
+      ${rankingIslas.map((r,i)=>`
+        <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:8px;${i===0?'border:0.5px solid rgba(255,200,0,.3)':''}">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="font-size:22px">${medals[i]||''}</span>
+            <span style="font-size:18px">${r.icon}</span>
+            <span style="font-size:15px;font-weight:700;font-family:var(--ff);flex:1">${r.isla}</span>
+            <span style="font-size:22px;font-weight:800;font-family:var(--ff);color:${scoreColor(r.score)}">${r.score}</span>
+            <span style="font-size:12px;color:var(--t3)">pts</span>
+          </div>
+          <!-- Barra de puntuación -->
+          <div style="height:6px;background:var(--bg2);border-radius:3px;margin-bottom:8px;overflow:hidden">
+            <div style="height:100%;width:${Math.max(0,r.score)}%;background:${scoreColor(r.score)};border-radius:3px;transition:width .6s ease"></div>
+          </div>
+          <!-- Detalle -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <div style="text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--green)">+${r.conOrain}</div>
+              <div style="font-size:10px;color:var(--t3)">ORAIN</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--green)">+${r.conTele}</div>
+              <div style="font-size:10px;color:var(--t3)">Telemetría</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--red)">-${r.pendOrain}</div>
+              <div style="font-size:10px;color:var(--t3)">P.ORAIN</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:13px;font-weight:700;color:var(--amber)">-${r.pendTele}</div>
+              <div style="font-size:10px;color:var(--t3)">P.Tele.</div>
+            </div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+
   // Si es una isla concreta, mostrar tabla por ruta comprimida
   if(orainIslaActiva!=='general'){
     const rutas=Object.entries(ind.porRuta).sort((a,b)=>a[0].localeCompare(b[0]));
