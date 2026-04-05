@@ -2472,8 +2472,12 @@ function renderOrainVista(){
 
   // Ranking por islas — solo en vista general
   if(orainIslaActiva==='general'){
+    // Debug: show what islands we have in data
+    const islasEnDatos = [...new Set(orainData.maquinas.map(m=>m.isla))];
+    console.log('Islas en datos:', islasEnDatos, 'Total maquinas:', orainData.maquinas.length);
     const rankingIslas = ORAIN_ISLAS.map(isla=>{
       const m = orainData.maquinas.filter(x=>(x.isla||'').toLowerCase()===isla.toLowerCase());
+      console.log(`Isla ${isla}: ${m.length} máquinas`);
       const total = m.length;
       if(!total) return null;
       const conOrain = m.filter(x=>x.estado_orain==='INSTALADO').length;
@@ -2489,6 +2493,17 @@ function renderOrainVista(){
       return {isla, total, conOrain, conTele, pendOrain, pendTele, score, pctOrain, pctTele,
         icon: ({'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'})[isla]||'🏝️'};
     }).filter(Boolean).sort((a,b)=>b.score-a.score);
+
+    // If no ranking data, show debug info
+    if(!rankingIslas.length){
+      const islasEnDatos=[...new Set(orainData.maquinas.map(m=>m.isla))];
+      html+=`<div class="orain-card" style="border-color:rgba(255,140,0,.3)">
+        <div style="font-size:13px;color:#ff8c00;font-weight:700;margin-bottom:8px">🏆 Ranking por isla</div>
+        <div style="font-size:12px;color:var(--t2)">Islas en datos: ${islasEnDatos.join(', ')||'ninguna'}</div>
+        <div style="font-size:12px;color:var(--t2)">Total máquinas cargadas: ${orainData.maquinas.length}</div>
+        <div style="font-size:11px;color:var(--t3);margin-top:6px">Si ves islas en mayúsculas arriba, los datos se guardaron con formato diferente. Vuelve a subir el Listado de Máquinas.</div>
+      </div>`;
+    }
 
     const medals = ['🥇','🥈','🥉','4️⃣'];
     const scoreColor = s => s>=75?'var(--green)':s>=50?'#ff8c00':s>=25?'var(--amber)':'var(--red)';
