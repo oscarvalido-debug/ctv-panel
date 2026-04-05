@@ -2607,17 +2607,22 @@ async function procesarExcelOrain(tipo, input){
         console.log(`Máquinas cargadas: ${count} válidas, ${excluidas} de servicio técnico excluidas`);
 
       } else if(tipo==='audits'){
+        // Audits file: ruta=col0, maqcodigo=col3, ultvisita=col7, ultaudit=col8
+        // Scan all rows directly without header detection
         const auditMap={};
-        dataRows.forEach(row=>{
-          const cod=String(col(row,['maqcodigo','cod'])||'').trim();
-          if(!cod) return;
-          const ultaudit=col(row,['ultaudit','audit']);
-          const ultvisita=col(row,['ultvisita','visita']);
+        const toISO=v=>{
+          if(!v) return null;
+          if(v instanceof Date) return v.toISOString();
+          const d=new Date(v); return isNaN(d)?null:d.toISOString();
+        };
+        allRows.forEach(row=>{
+          if(!row||row.length<4) return;
+          const cod=String(row[3]||'').trim();
+          if(!cod||cod==='maqcodigo'||cod.length<3) return;
           auditMap[cod]={
-            ultimo_audit: ultaudit instanceof Date?ultaudit.toISOString():(ultaudit?new Date(ultaudit).toISOString():null),
-            ultima_comunicacion: ultvisita instanceof Date?ultvisita.toISOString():(ultvisita?new Date(ultvisita).toISOString():null),
-            ruta: String(col(row,['ruta'])||'').trim(),
-            pdvubic: String(col(row,['pdvubic','pdvcentro'])||'').trim()
+            ultimo_audit: toISO(row[8]),
+            ultima_comunicacion: toISO(row[7]),
+            ruta: String(row[0]||'').trim()
           };
           count++;
         });
