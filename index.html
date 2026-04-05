@@ -2630,31 +2630,29 @@ async function procesarExcelOrain(tipo, input){
 
       } else if(tipo==='monederos'){
         orainData.monederos=new Set();
-        // Monederos file: Máquina column is index 2 (col C)
-        // Use both header search and direct index as fallback
-        dataRows.forEach(row=>{
-          // Try by header name first
-          let cod=String(col(row,['máquina','maquina'])||'').trim();
-          // Fallback: use column index 2 directly if header search fails
-          if(!cod && row[2]) cod=String(row[2]).trim();
-          if(cod && cod!=='máquina' && cod!=='Máquina' && cod.length>2){
+        // Scan ALL rows looking for machine codes in column index 2
+        // Machine codes start with T, G or are alphanumeric 4+ chars
+        allRows.forEach(row=>{
+          if(!row || row.length < 3) return;
+          const cod = String(row[2]||'').trim();
+          if(cod && cod.length>=3 && cod!=='Máquina' && cod!=='máquina' && !/^(código|listado|marca)/i.test(cod)){
             orainData.monederos.add(cod); count++;
           }
         });
-        // Mark in maquinas
         orainData.maquinas=orainData.maquinas.map(m=>({
-          ...m, tiene_monedero: orainData.monederos.has(m.cod_maq),
-          estado_orain: orainData.monederos.has(m.cod_maq) && m.estado_orain==='PENDIENTE' ? 'IMPOSIBLE' : m.estado_orain
+          ...m,
+          tiene_monedero: orainData.monederos.has(m.cod_maq),
+          estado_orain: orainData.monederos.has(m.cod_maq) ? 'IMPOSIBLE' : m.estado_orain
         }));
         orainData.cargado.monederos=true;
 
       } else if(tipo==='dispositivos'){
         orainData.dispositivosOrain=new Set();
-        dataRows.forEach(row=>{
-          let cod=String(col(row,['máquina','maquina'])||'').trim();
-          // Fallback: column index 2 directly
-          if(!cod && row[2]) cod=String(row[2]).trim();
-          if(cod && cod!=='máquina' && cod!=='Máquina' && cod.length>2){
+        // Scan ALL rows for machine codes in column index 2
+        allRows.forEach(row=>{
+          if(!row || row.length < 3) return;
+          const cod = String(row[2]||'').trim();
+          if(cod && cod.length>=3 && cod!=='Máquina' && cod!=='máquina' && !/^(código|listado|marca)/i.test(cod)){
             orainData.dispositivosOrain.add(cod); count++;
           }
         });
