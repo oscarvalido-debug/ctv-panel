@@ -2522,10 +2522,10 @@ function cerrarAdminOrain(){
 
 function renderOrainUploadCards(){
   const uploads=[
-    {id:'maquinas',label:'1 — Listado de Máquinas',sub:'Columnas: Cod. Maq., Delegación, Ruta, ORAIN INSTALADO, Ubic.'},
-    {id:'audits',label:'2 — Dashboard Audits (Audit Monitor)',sub:'Columnas: ruta, maqcodigo, pdvubic, ultaudit'},
-    {id:'monederos',label:'3 — Monederos',sub:'Lista de máquinas con monedero incompatible. Columna: Máquina'},
-    {id:'dispositivos',label:'4 — Listado de Otros Dispositivos',sub:'Máquinas con ORAIN instalado. Columna: Máquina'},
+    {id:'maquinas',label:'1 — Listado de Máquinas',sub:'Columnas: Cod. Maq., Delegación, Ruta, Ubic.'},
+    {id:'monederos',label:'2 — Monederos',sub:'Lista de máquinas con monedero incompatible. Columna: Máquina'},
+    {id:'dispositivos',label:'3 — Listado de Otros Dispositivos',sub:'Máquinas con ORAIN instalado. Columna: Máquina'},
+    {id:'audits',label:'4 — Dashboard Audits (Audit Monitor)',sub:'Columnas: ruta, maqcodigo, pdvubic, ultaudit — subir siempre el último'},
   ];
   const cards=uploads.map(u=>`
     <div class="orain-upload-card">
