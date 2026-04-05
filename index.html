@@ -2704,22 +2704,43 @@ async function guardarOrainEnSupabase(tipo){
         await sb.from('orain_maquinas').insert(batch);
       }
     } else {
-      // For audits, monederos, dispositivos: update each machine individually
-      for(let i=0;i<orainData.maquinas.length;i+=50){
-        const batch=orainData.maquinas.slice(i,i+50);
-        for(const m of batch){
-          const upd={updated_at:new Date().toISOString()};
-          if(tipo==='audits'){
-            upd.ultimo_audit=m.ultimo_audit||null;
-            upd.ultima_comunicacion=m.ultima_comunicacion||null;
-            upd.ruta=m.ruta||'';
-          } else if(tipo==='monederos'){
-            upd.tiene_monedero=m.tiene_monedero||false;
-            upd.estado_orain=m.estado_orain;
-          } else if(tipo==='dispositivos'){
-            upd.estado_orain=m.estado_orain;
+      // For monederos and dispositivos: only update affected machines (much faster)
+      // For audits: update all with audit data
+      if(tipo==='audits'){
+        // Only update machines that have audit data
+        const auditMachines=orainData.maquinas.filter(m=>m.ultimo_audit||m.ruta);
+        for(let i=0;i<auditMachines.length;i+=100){
+          const batch=auditMachines.slice(i,i+100);
+          for(const m of batch){
+            await sb.from('orain_maquinas').update({
+              ultimo_audit:m.ultimo_audit||null,
+              ultima_comunicacion:m.ultima_comunicacion||null,
+              ruta:m.ruta||'',
+              updated_at:new Date().toISOString()
+            }).eq('cod_maq',m.cod_maq);
           }
-          await sb.from('orain_maquinas').update(upd).eq('cod_maq',m.cod_maq);
+        }
+      } else if(tipo==='monederos'){
+        // Only update machines with monedero
+        const monMachines=orainData.maquinas.filter(m=>m.tiene_monedero);
+        for(const m of monMachines){
+          await sb.from('orain_maquinas').update({
+            tiene_monedero:true,
+            estado_orain:m.estado_orain,
+            updated_at:new Date().toISOString()
+          }).eq('cod_maq',m.cod_maq);
+        }
+      } else if(tipo==='dispositivos'){
+        // Only update machines with ORAIN installed
+        const orainMachines=orainData.maquinas.filter(m=>m.estado_orain==='INSTALADO');
+        for(let i=0;i<orainMachines.length;i+=100){
+          const batch=orainMachines.slice(i,i+100);
+          for(const m of batch){
+            await sb.from('orain_maquinas').update({
+              estado_orain:'INSTALADO',
+              updated_at:new Date().toISOString()
+            }).eq('cod_maq',m.cod_maq);
+          }
         }
       }
     }
