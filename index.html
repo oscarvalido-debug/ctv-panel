@@ -2334,9 +2334,10 @@ async function cargarDatosOrain(){
     if(error) throw error;
     if(data && data.length){
       // Map Supabase column names to JS object properties
+      const islaMap={'LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura','GRAN CANARIA':'Gran Canaria','TENERIFE':'Tenerife'};
       orainData.maquinas = data.map(r=>({
         cod_maq:            r.cod_maq||'',
-        isla:               r.isla||'',
+        isla:               islaMap[(r.isla||'').toUpperCase()]||(r.isla||''),
         ruta:               r.ruta||'',
         nombre:             r.nombre||'',
         estado_orain:       r.estado_orain||'PENDIENTE',
@@ -2348,7 +2349,9 @@ async function cargarDatosOrain(){
         ubicacion:          r.ubicacion||''
       }));
       orainData.cargado.maquinas=true;
-      orainData.cargado.audits=true;
+      orainData.cargado.monederos=data.some(r=>r.tiene_monedero);
+      orainData.cargado.dispositivos=data.some(r=>r.estado_orain==='INSTALADO');
+      orainData.cargado.audits=data.some(r=>r.ultimo_audit);
       renderOrainTabs();
       renderOrainVista();
     }
@@ -2358,7 +2361,7 @@ async function cargarDatosOrain(){
 // ── CALCULAR INDICADORES ──
 function orainIndicadores(isla){
   let maquinas = orainData.maquinas;
-  if(isla && isla!=='general') maquinas=maquinas.filter(m=>m.isla===isla);
+  if(isla && isla!=='general') maquinas=maquinas.filter(m=>(m.isla||'').toLowerCase()===isla.toLowerCase());
 
   const total      = maquinas.length;
   const conOrain   = maquinas.filter(m=>m.estado_orain==='INSTALADO').length;
@@ -2379,17 +2382,18 @@ function orainIndicadores(isla){
   const sinCom4dSet = new Set(sinCom4d.map(x=>x.cod_maq));
   const porRuta={};
   maquinas.forEach(m=>{
-    if(!m.ruta) return;
-    if(!porRuta[m.ruta]) porRuta[m.ruta]={total:0,orain:0,telemetria:0,pendienteOrain:0,pendienteTelemetria:0,imposible:0,sinCom:0};
-    porRuta[m.ruta].total++;
+    // Use ruta from machine, fallback to 'Sin ruta asignada' 
+    const ruta = (m.ruta||'').trim() || 'Sin ruta asignada';
+    if(!porRuta[ruta]) porRuta[ruta]={total:0,orain:0,telemetria:0,pendienteOrain:0,pendienteTelemetria:0,imposible:0,sinCom:0};
+    porRuta[ruta].total++;
     if(m.estado_orain==='INSTALADO'){
-      porRuta[m.ruta].orain++;
-      if(m.ultimo_audit) porRuta[m.ruta].telemetria++;
-      else porRuta[m.ruta].pendienteTelemetria++;
+      porRuta[ruta].orain++;
+      if(m.ultimo_audit) porRuta[ruta].telemetria++;
+      else porRuta[ruta].pendienteTelemetria++;
     }
-    if(m.estado_orain==='PENDIENTE') porRuta[m.ruta].pendienteOrain++;
-    if(m.tiene_monedero||m.estado_orain==='IMPOSIBLE') porRuta[m.ruta].imposible++;
-    if(sinCom4dSet.has(m.cod_maq)) porRuta[m.ruta].sinCom++;
+    if(m.estado_orain==='PENDIENTE') porRuta[ruta].pendienteOrain++;
+    if(m.tiene_monedero||m.estado_orain==='IMPOSIBLE') porRuta[ruta].imposible++;
+    if(sinCom4dSet.has(m.cod_maq)) porRuta[ruta].sinCom++;
   });
 
   return {total,conOrain,conTelemetria,pendienteOrain,pendienteTelemetria,imposibles,sinCom4d,porRuta};
@@ -2542,22 +2546,50 @@ function renderOrainVista(){
     html+=`<div class="orain-card">
       <div style="font-size:13px;font-weight:700;font-family:var(--ff);color:#ff8c00;margin-bottom:12px">Estado por ruta</div>
       <!-- Cabecera -->
-      <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px;gap:4px;padding:5px 8px;margin-bottom:4px">
-        <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">Ruta</div>
+      <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;padding:5px 8px;margin-bottom:4px">
+        <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">Ruta / Progreso</div>
+        <div style="font-size:9px;color:var(--blue);text-align:center">Total</div>
         <div style="font-size:9px;color:var(--green);text-align:center">ORAIN</div>
-        <div style="font-size:9px;color:var(--green);text-align:center;opacity:.7">Tele.</div>
         <div style="font-size:9px;color:#ff8c00;text-align:center">P.ORAIN</div>
+        <div style="font-size:9px;color:rgba(61,207,142,.7);text-align:center">Tele.</div>
         <div style="font-size:9px;color:var(--amber);text-align:center">P.Tele.</div>
-        <div style="font-size:9px;color:var(--red);text-align:center">Sin com.</div>
+        <div style="font-size:9px;color:var(--t3);text-align:center">Impos.</div>
       </div>
-      ${rutas.map(([ruta,vals])=>`
-        <div style="display:grid;grid-template-columns:1fr 60px 60px 60px 60px 60px;gap:4px;padding:7px 8px;background:var(--bg3);border-radius:8px;margin-bottom:4px;align-items:center">
-          <div style="font-size:12px;font-weight:600;font-family:var(--ff);color:var(--t1)">${ruta}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--green);text-align:center">${vals.orain}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.6);text-align:center">${vals.telemetria}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:#ff8c00;text-align:center">${vals.pendienteOrain}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${vals.pendienteTelemetria}</div>
-          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:${vals.sinCom>0?'var(--red)':'var(--t3)'};text-align:center">${vals.sinCom}</div>
+      ${rutas.filter(([r])=>r!=='Sin ruta asignada').map(([ruta,vals])=>{
+        // Progress: (ORAIN instalado) / (total - imposibles) * 100
+        const objetivo = Math.max(1, vals.total - vals.imposible);
+        const pct = Math.min(100, Math.round(vals.orain / objetivo * 100));
+        const barColor = pct>=90?'var(--green)':pct>=60?'#ff8c00':'var(--red)';
+        return `<div style="background:var(--bg3);border-radius:8px;padding:8px;margin-bottom:4px">
+          <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center;margin-bottom:6px">
+            <div style="font-size:12px;font-weight:600;font-family:var(--ff);color:var(--t1)">${ruta}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--blue);text-align:center">${vals.total}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--green);text-align:center">${vals.orain}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:#ff8c00;text-align:center">${vals.pendienteOrain}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8);text-align:center">${vals.telemetria}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${vals.pendienteTelemetria}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--t3);text-align:center">${vals.imposible}</div>
+          </div>
+          <!-- Barra de progreso -->
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
+              <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;transition:width .6s ease"></div>
+            </div>
+            <div style="font-size:10px;font-weight:700;color:${barColor};min-width:30px;text-align:right">${pct}%</div>
+          </div>
+        </div>`;
+      }).join('')}
+      ${rutas.filter(([r])=>r==='Sin ruta asignada').map(([ruta,vals])=>`
+        <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px;margin-top:4px;opacity:.6">
+          <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center">
+            <div style="font-size:11px;color:var(--t3);font-style:italic">Sin ruta (pendientes)</div>
+            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.total}</div>
+            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.orain}</div>
+            <div style="font-size:13px;color:#ff8c00;text-align:center">${vals.pendienteOrain}</div>
+            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.telemetria}</div>
+            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.pendienteTelemetria}</div>
+            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.imposible}</div>
+          </div>
         </div>`).join('')}
     </div>`;
   }
@@ -2657,7 +2689,7 @@ async function procesarExcelOrain(tipo, input){
           const st=col(row,['servicio_tecnico','servicio tecnico','tecnico']);
           if(st===true||st==='TRUE'||st==='VERDADERO'||st===1){ excluidas++; return; }
           const deleg=String(col(row,['delegaci'])||'').toUpperCase().trim();
-          const isla=ORAIN_ISLA_MAP[deleg]||deleg;
+          const isla=ORAIN_ISLA_MAP[deleg]||({'GRAN CANARIA':'Gran Canaria','LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura','TENERIFE':'Tenerife'})[deleg]||deleg;
           maqMap[cod]={
             cod_maq:cod, isla, ruta:String(col(row,['ruta'])||'').trim(),
             nombre:String(col(row,['nombre'])||'').trim(),
@@ -2769,7 +2801,7 @@ async function guardarOrainEnSupabase(tipo){
       await sb.from('orain_maquinas').delete().neq('cod_maq','__none__');
       for(let i=0;i<orainData.maquinas.length;i+=200){
         const batch=orainData.maquinas.slice(i,i+200).map(m=>({
-          cod_maq:m.cod_maq||'', isla:m.isla||'', ruta:m.ruta||'',
+          cod_maq:m.cod_maq||'', isla:m.isla||'', ruta:(m.ruta||'').trim(),
           nombre:m.nombre||'', estado_orain:m.estado_orain||'PENDIENTE',
           tiene_monedero:m.tiene_monedero||false,
           motivo_imposible:m.motivo_imposible||null,
@@ -2806,7 +2838,7 @@ async function guardarOrainEnSupabase(tipo){
       // Supabase upsert in batches of 200
       for(let i=0;i<orainData.maquinas.length;i+=200){
         const batch=orainData.maquinas.slice(i,i+200).map(m=>({
-          cod_maq:m.cod_maq||'', isla:m.isla||'', ruta:m.ruta||'',
+          cod_maq:m.cod_maq||'', isla:m.isla||'', ruta:(m.ruta||'').trim(),
           nombre:m.nombre||'', estado_orain:m.estado_orain||'PENDIENTE',
           tiene_monedero:m.tiene_monedero||false,
           motivo_imposible:m.motivo_imposible||null,
