@@ -2353,6 +2353,7 @@ async function cargarDatosOrain(){
         nombre:             r.nombre||'',
         estado_orain:       r.estado_orain||'PENDIENTE',
         tiene_monedero:     r.tiene_monedero||false,
+        es_telemetria:      r.tipo_telemetria==='telemetria',
         motivo_imposible:   r.motivo_imposible||null,
         ultima_comunicacion:r.ultima_comunicacion||null,
         ultimo_audit:       r.ultimo_audit||null,
@@ -2377,13 +2378,16 @@ function orainIndicadores(isla){
   const total      = maquinas.length;
   const conOrain   = maquinas.filter(m=>m.estado_orain==='INSTALADO').length;
   // Telemetría activa = aparece en Audit Monitor (tiene ultimo_audit)
-  const conTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.ultimo_audit).length;
+  const conTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && m.ultimo_audit).length;
   // Pendiente ORAIN = no tiene ORAIN instalado (excluyendo imposibles)
   const pendienteOrain = maquinas.filter(m=>m.estado_orain==='PENDIENTE').length;
   // Pendiente Telemetría = tiene ORAIN pero sin telemetría activa
-  const pendienteTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && !m.ultimo_audit).length;
+  const pendienteTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && (!m.es_telemetria || !m.ultimo_audit)).length;
   const imposibles = maquinas.filter(m=>m.tiene_monedero||m.estado_orain==='IMPOSIBLE').length;
   const sinCom4d = maquinas.filter(m=>{
+    // Solo máquinas con ORAIN instalado Y telemetría activa que llevan +4 días sin comunicar
+    if(m.estado_orain!=='INSTALADO') return false;
+    if(!m.es_telemetria) return false;
     if(!m.ultimo_audit) return false;
     const diff=(new Date()-new Date(m.ultimo_audit))/(1000*3600*24);
     return diff>=4;
@@ -2399,12 +2403,15 @@ function orainIndicadores(isla){
     porRuta[ruta].total++;
     if(m.estado_orain==='INSTALADO'){
       porRuta[ruta].orain++;
-      if(m.ultimo_audit) porRuta[ruta].telemetria++;
-      else porRuta[ruta].pendienteTelemetria++;
+      // Telemetría = ORAIN instalado Y es telemetría (no bluetooth)
+      if(m.es_telemetria && m.ultimo_audit) porRuta[ruta].telemetria++;
+      else if(m.es_telemetria) porRuta[ruta].pendienteTelemetria++;
+      // Bluetooth machines: have ORAIN but no telemetría - count as pendiente telemetría
+      else if(!m.es_telemetria) porRuta[ruta].pendienteTelemetria++;
     }
     if(m.estado_orain==='PENDIENTE') porRuta[ruta].pendienteOrain++;
     if(m.tiene_monedero||m.estado_orain==='IMPOSIBLE') porRuta[ruta].imposible++;
-    if(sinCom4dSet.has(m.cod_maq)) porRuta[ruta].sinCom++;
+    if(m.estado_orain==='INSTALADO' && sinCom4dSet.has(m.cod_maq)) porRuta[ruta].sinCom++;
   });
 
   return {total,conOrain,conTelemetria,pendienteOrain,pendienteTelemetria,imposibles,sinCom4d,porRuta};
@@ -2763,6 +2770,7 @@ async function procesarExcelOrain(tipo, input){
           const esTelemetria=tipocon.includes('tele');
           auditMap[cod]={
             ruta,
+            es_telemetria: esTelemetria,
             // Only set audit date for telemetría machines
             ultimo_audit: esTelemetria ? toISO(row[8]) : null,
             ultima_comunicacion: esTelemetria ? toISO(row[7]) : null,
@@ -2776,6 +2784,7 @@ async function procesarExcelOrain(tipo, input){
           return {
             ...m,
             ruta: a.ruta,
+            es_telemetria: a.es_telemetria,
             ultimo_audit: a.ultimo_audit||m.ultimo_audit,
             ultima_comunicacion: a.ultima_comunicacion||m.ultima_comunicacion
           };
@@ -2865,6 +2874,7 @@ async function guardarOrainEnSupabase(tipo){
           nombre:m.nombre||'', estado_orain:m.estado_orain||'PENDIENTE',
           tiene_monedero:m.tiene_monedero||false,
           motivo_imposible:m.motivo_imposible||null,
+          tipo_telemetria:m.es_telemetria?'telemetria':'bluetooth',
           ultima_comunicacion:m.ultima_comunicacion||null,
           ultimo_audit:m.ultimo_audit||null,
           pdv:m.pdv||'', ubicacion:m.ubicacion||'',
@@ -2902,6 +2912,7 @@ async function guardarOrainEnSupabase(tipo){
           nombre:m.nombre||'', estado_orain:m.estado_orain||'PENDIENTE',
           tiene_monedero:m.tiene_monedero||false,
           motivo_imposible:m.motivo_imposible||null,
+          tipo_telemetria:m.es_telemetria?'telemetria':'bluetooth',
           ultima_comunicacion:m.ultima_comunicacion||null,
           ultimo_audit:m.ultimo_audit||null,
           pdv:m.pdv||'', ubicacion:m.ubicacion||'',
