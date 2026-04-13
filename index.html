@@ -2591,17 +2591,29 @@ function renderOrainVista(){
         </div>`;
       }).join('')}
       ${rutas.filter(([r])=>r==='Sin ruta asignada').map(([ruta,vals])=>`
-        <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px;margin-top:4px;opacity:.6">
-          <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center">
-            <div style="font-size:11px;color:var(--t3);font-style:italic">Sin ruta (pendientes)</div>
-            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.total}</div>
-            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.orain}</div>
+        <div style="background:rgba(255,255,255,.03);border-radius:8px;padding:8px;margin-top:4px">
+          <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center;margin-bottom:4px">
+            <div style="font-size:11px;color:var(--t3);font-style:italic">Pendientes sin ruta asignada</div>
+            <div style="font-size:13px;color:var(--blue);text-align:center">${vals.total}</div>
+            <div style="font-size:13px;color:var(--green);text-align:center">${vals.orain}</div>
             <div style="font-size:13px;color:#ff8c00;text-align:center">${vals.pendienteOrain}</div>
-            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.telemetria}</div>
-            <div style="font-size:13px;color:var(--t3);text-align:center">${vals.pendienteTelemetria}</div>
+            <div style="font-size:13px;color:rgba(61,207,142,.8);text-align:center">${vals.telemetria}</div>
+            <div style="font-size:13px;color:var(--amber);text-align:center">${vals.pendienteTelemetria}</div>
             <div style="font-size:13px;color:var(--t3);text-align:center">${vals.imposible}</div>
           </div>
         </div>`).join('')}
+      <!-- Fila de TOTALES que debe coincidir con el cuadro de arriba -->
+      <div style="border-top:0.5px solid var(--border2);margin-top:8px;padding-top:8px">
+        <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center;padding:6px 8px;background:rgba(255,255,255,.04);border-radius:8px">
+          <div style="font-size:11px;font-weight:700;font-family:var(--ff);color:var(--t2)">TOTAL ISLA</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--blue);text-align:center">${ind.total}</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--green);text-align:center">${ind.conOrain}</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:#ff8c00;text-align:center">${ind.pendienteOrain}</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8);text-align:center">${ind.conTelemetria}</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${ind.pendienteTelemetria}</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--t3);text-align:center">${ind.imposibles}</div>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -2728,13 +2740,13 @@ async function procesarExcelOrain(tipo, input){
         console.log(`Máquinas cargadas: ${count} válidas, ${excluidas} de servicio técnico excluidas`);
 
       } else if(tipo==='audits'){
-        // Audits file: ruta=col0, maqcodigo=col3, ultvisita=col7, ultaudit=col8
-        // Scan all rows directly without header detection
+        // Audits file: ruta=col0, maqcodigo=col3, tipocon=col4, ultvisita=col7, ultaudit=col8
+        // Scan all rows — assign ruta to ALL machines (telemetría + bluetooth)
+        // Only assign ultimo_audit to telemetría machines
         const auditMap={};
         const toISO=v=>{
           if(!v) return null;
           if(v instanceof Date) return v.toISOString();
-          // Handle Excel serial date numbers
           if(typeof v==='number' && v>40000){
             const d=new Date((v-25569)*86400*1000);
             return isNaN(d)?null:d.toISOString();
@@ -2745,17 +2757,28 @@ async function procesarExcelOrain(tipo, input){
           if(!row||row.length<4) return;
           const cod=String(row[3]||'').trim();
           if(!cod||cod==='maqcodigo'||cod.length<3) return;
+          const ruta=String(row[0]||'').trim();
+          if(ruta==='MAQUINAS SERVICIO TECNICO') return; // skip servicio tecnico
+          const tipocon=String(row[4]||'').toLowerCase();
+          const esTelemetria=tipocon.includes('tele');
           auditMap[cod]={
-            ultimo_audit: toISO(row[8]),
-            ultima_comunicacion: toISO(row[7]),
-            ruta: String(row[0]||'').trim()
+            ruta,
+            // Only set audit date for telemetría machines
+            ultimo_audit: esTelemetria ? toISO(row[8]) : null,
+            ultima_comunicacion: esTelemetria ? toISO(row[7]) : null,
           };
           count++;
         });
-        // Merge into maquinas
+        // Merge into maquinas — ruta for ALL, audit only for telemetría
         orainData.maquinas=orainData.maquinas.map(m=>{
           const a=auditMap[m.cod_maq]||auditMap[m.pdv]||{};
-          return {...m,...a};
+          if(!a.ruta) return m;
+          return {
+            ...m,
+            ruta: a.ruta,
+            ultimo_audit: a.ultimo_audit||m.ultimo_audit,
+            ultima_comunicacion: a.ultima_comunicacion||m.ultima_comunicacion
+          };
         });
         orainData.cargado.audits=true;
 
