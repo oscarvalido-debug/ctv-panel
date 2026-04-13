@@ -1644,6 +1644,7 @@ function volverSelector(){
 let tecnicos = [];
 let averias  = [];
 let islaActivaTec = 'Lanzarote';
+let cambiosMaquina = []; // {id, isla, maq_retirar, modelo_retirar, comercio, maq_colocar, modelo_colocar, estado}
 
 async function cargarTecnicos(){
   try{
@@ -1656,6 +1657,14 @@ async function cargarTecnicos(){
       colorIdx: i % COLORES_REP.length
     }));
   }catch(e){ console.error('Error técnicos:',e); }
+}
+
+async function cargarCambiosMaquina(){
+  try{
+    const {data,error}=await sb.from('cambios_maquina').select('*').eq('estado','pendiente').order('created_at',{ascending:false});
+    if(error) throw error;
+    cambiosMaquina=data||[];
+  }catch(e){ console.error('Error cargando cambios maquina:',e); }
 }
 
 async function cargarAverias(){
@@ -1756,14 +1765,41 @@ function renderTecnicos(){
     </div>`;
   }
 
-  // Show side by side if 2 techs, single column if 1
-  if(tecs.length>=2){
-    lista.innerHTML=`<div style="display:grid;grid-template-columns:repeat(${Math.min(tecs.length,2)},1fr);gap:12px;align-items:start">
-      ${tecs.map(t=>buildTecCard(t)).join('')}
-    </div>`;
-  } else {
-    lista.innerHTML=tecs.map(t=>buildTecCard(t)).join('');
-  }
+  // Build cambios column for this isla
+  const cambiosIsla=cambiosMaquina.filter(c=>c.isla===islaActivaTec);
+  const cambiosCol=`<div class="tec-card" style="height:100%;display:flex;flex-direction:column">
+    <div class="tec-header" style="margin-bottom:10px">
+      <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,140,0,.15);display:flex;align-items:center;justify-content:center;font-size:18px">🔄</div>
+      <div class="tec-info">
+        <div class="tec-name">Cambios pendientes</div>
+        <div class="tec-count">${cambiosIsla.length} cambio${cambiosIsla.length!==1?'s':''}</div>
+      </div>
+    </div>
+    <div style="flex:1;overflow-y:auto">
+      ${cambiosIsla.length?cambiosIsla.map(c=>`
+        <div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px;border-left:3px solid #ff8c00">
+          <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">📍 ${c.comercio||'Sin nombre'}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+              <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
+              <div style="font-size:12px;font-weight:700;color:var(--t1)">${c.maq_retirar||'—'}</div>
+              <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
+            </div>
+            <div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+              <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Colocar</div>
+              <div style="font-size:12px;font-weight:700;color:var(--t1)">${c.maq_colocar||'—'}</div>
+              <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
+            </div>
+          </div>
+        </div>`).join('')
+      :'<div style="text-align:center;color:var(--green);font-size:13px;padding:20px 0">Sin cambios pendientes</div>'}
+    </div>
+  </div>`;
+
+  lista.innerHTML=`<div style="display:grid;grid-template-columns:${tecs.length>=2?'1fr 1fr':'1fr'} 300px;gap:12px;align-items:start">
+    ${tecs.map(t=>buildTecCard(t)).join('')}
+    ${cambiosCol}
+  </div>`;
 }
 
 function actualizarFechaTec(){
@@ -1821,6 +1857,7 @@ function renderAdminTecHtml(){
     <div class="sup-tabs" style="margin-bottom:14px">
       <button class="sup-tab active" onclick="adminTecTab('tecnicos',this)">Técnicos</button>
       <button class="sup-tab" onclick="adminTecTab('averias',this)">Averías</button>
+      <button class="sup-tab" onclick="adminTecTab('cambios',this)">Cambios máquina</button>
     </div>
     <div id="admin-tec-panel">`;
 
@@ -1902,6 +1939,22 @@ function renderAdminTecHtml(){
       <div class="sec-lbl" style="margin-top:12px">Averías activas</div>
       <div id="averias-activas-list">${renderAveriasAdmin()}</div>
     </div>
+    <div id="admin-cambios-panel" style="display:none">
+      <div style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;font-family:var(--ff);margin-bottom:12px">Añadir cambio de máquina</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="field"><label>Isla</label><select id="cm-isla"><option value="Lanzarote">Lanzarote</option><option value="Fuerteventura">Fuerteventura</option><option value="Gran Canaria">Gran Canaria</option><option value="Tenerife">Tenerife</option></select></div>
+          <div class="field"><label>Nombre del comercio</label><input type="text" id="cm-comercio" placeholder="Ej: Bar La Playa"></div>
+          <div class="field"><label>Máquina a retirar (Nº)</label><input type="text" id="cm-maq-ret" placeholder="Ej: G14852"></div>
+          <div class="field"><label>Modelo a retirar</label><input type="text" id="cm-mod-ret" placeholder="Ej: Jofemar Vision"></div>
+          <div class="field"><label>Máquina a colocar (Nº)</label><input type="text" id="cm-maq-col" placeholder="Ej: T1234"></div>
+          <div class="field"><label>Modelo a colocar</label><input type="text" id="cm-mod-col" placeholder="Ej: Necta Colibri"></div>
+        </div>
+        <button onclick="añadirCambioMaquina()" class="save-btn">Registrar cambio</button>
+      </div>
+      <div class="sec-lbl" style="margin-top:12px">Cambios pendientes</div>
+      <div id="cambios-activos-list">${renderCambiosAdmin()}</div>
+    </div>
   </div>`;
   return html;
 }
@@ -1926,10 +1979,68 @@ function renderAveriasAdmin(){
 }
 
 function adminTecTab(tab, btn){
-  document.querySelectorAll('#admin-tec-panel, #admin-averias-panel').forEach(el=>el.style.display='none');
+  document.querySelectorAll('#admin-tec-panel, #admin-averias-panel, #admin-cambios-panel').forEach(el=>el.style.display='none');
   document.querySelectorAll('.sup-tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById(tab==='tecnicos'?'admin-tec-panel':'admin-averias-panel').style.display='';
+  const panelId = tab==='tecnicos'?'admin-tec-panel':tab==='averias'?'admin-averias-panel':'admin-cambios-panel';
+  document.getElementById(panelId).style.display='';
+}
+
+function renderCambiosAdmin(){
+  if(!cambiosMaquina.length) return '<div style="text-align:center;color:var(--t3);padding:24px 0">Sin cambios pendientes</div>';
+  return cambiosMaquina.map(c=>`
+    <div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">${islaIcon(c.isla)} ${c.isla} — 📍 ${c.comercio||'Sin nombre'}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+            <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
+            <div style="font-size:12px;font-weight:700">${c.maq_retirar||'—'}</div>
+            <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
+          </div>
+          <div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+            <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Colocar</div>
+            <div style="font-size:12px;font-weight:700">${c.maq_colocar||'—'}</div>
+            <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
+          </div>
+        </div>
+      </div>
+      <button onclick="marcarCambioRealizado('${c.id}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(61,207,142,.3);background:transparent;color:var(--green);font-size:11px;cursor:pointer;flex-shrink:0">✓ Realizado</button>
+    </div>`).join('');
+}
+
+async function añadirCambioMaquina(){
+  const isla=document.getElementById('cm-isla')?.value;
+  const comercio=document.getElementById('cm-comercio')?.value.trim();
+  const maq_retirar=document.getElementById('cm-maq-ret')?.value.trim();
+  const modelo_retirar=document.getElementById('cm-mod-ret')?.value.trim();
+  const maq_colocar=document.getElementById('cm-maq-col')?.value.trim();
+  const modelo_colocar=document.getElementById('cm-mod-col')?.value.trim();
+  if(!comercio){ toast('Indica el nombre del comercio'); return; }
+  const {data,error}=await sb.from('cambios_maquina').insert([{
+    isla, comercio, maq_retirar, modelo_retirar, maq_colocar, modelo_colocar, estado:'pendiente'
+  }]).select();
+  if(error){ toast('Error: '+error.message); return; }
+  await cargarCambiosMaquina();
+  document.getElementById('cm-comercio').value='';
+  document.getElementById('cm-maq-ret').value='';
+  document.getElementById('cm-mod-ret').value='';
+  document.getElementById('cm-maq-col').value='';
+  document.getElementById('cm-mod-col').value='';
+  const lista=document.getElementById('cambios-activos-list');
+  if(lista) lista.innerHTML=renderCambiosAdmin();
+  renderTecnicos();
+  toast('Cambio registrado');
+}
+
+async function marcarCambioRealizado(id){
+  const {error}=await sb.from('cambios_maquina').update({estado:'realizado'}).eq('id',id);
+  if(error){ toast('Error: '+error.message); return; }
+  await cargarCambiosMaquina();
+  const lista=document.getElementById('cambios-activos-list');
+  if(lista) lista.innerHTML=renderCambiosAdmin();
+  renderTecnicos();
+  toast('Cambio marcado como realizado');
 }
 
 function toggleIslaSection(id){
@@ -2007,6 +2118,7 @@ async function añadirAveria(){
   });
   if(error){toast('Error: '+error.message);return;}
   await cargarAverias();
+  await cargarCambiosMaquina();
   document.getElementById('vista-tec').innerHTML=renderAdminTecHtml();
   toast('Avería registrada');
 }
@@ -2183,6 +2295,7 @@ async function aplicarExcelAverias(){
       if(error) throw error;
     }
     await cargarAverias();
+  await cargarCambiosMaquina();
     document.getElementById('av-excel-preview').innerHTML='';
     document.getElementById('av-excel-input').value='';
     const list=document.getElementById('averias-activas-list');
@@ -2201,6 +2314,7 @@ async function aplicarExcelAverias(){
 async function resolverAveria(id){
   await sb.from('averias').update({resuelta:true}).eq('id',id);
   await cargarAverias();
+  await cargarCambiosMaquina();
   const list=document.getElementById('averias-activas-list');
   if(list) list.innerHTML=renderAveriasAdmin();
   toast('Avería marcada como resuelta');
@@ -3498,6 +3612,7 @@ function renderPantallaOrain(){
   await cargarHistorico();
   await cargarTecnicos();
   await cargarAverias();
+  await cargarCambiosMaquina();
   // Hide loading, show login
   document.getElementById("loading").classList.add("hidden");
   // app stays hidden until login
@@ -3517,6 +3632,7 @@ function renderPantallaOrain(){
   sb.channel('averias_realtime')
     .on('postgres_changes',{event:'*',schema:'public',table:'averias'},async()=>{
       await cargarAverias();
+  await cargarCambiosMaquina();
       if(moduloActivo==='tecnicos') renderTecnicos();
     }).subscribe();
 })();
