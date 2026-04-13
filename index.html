@@ -2338,31 +2338,34 @@ function renderPantallaTecResumen(){
   if(!body) return;
   body.style.gridTemplateColumns='1fr';
   body.style.alignItems='center';
+  body.style.padding='40px 60px';
 
-  // Total averias por isla
   const islaStats=ORAIN_ISLAS.map(isla=>{
     const tecsIsla=tecnicos.filter(t=>t.activo&&t.isla===isla);
     const avIsla=averias.filter(a=>tecsIsla.some(t=>t.id===a.tecnico_id||t.nombre===a.tecnico_nombre));
     const alta=avIsla.filter(a=>a.urgencia==='alta').length;
     return {isla, total:avIsla.length, alta,
       icon:({'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'})[isla]||'🏝️'};
-  }).filter(s=>s.total>0||tecnicos.some(t=>t.isla===s.isla&&t.activo));
+  }).filter(s=>s.isla); // all islands
 
   const totalGlobal=averias.length;
+  const totalColor=totalGlobal===0?'var(--green)':totalGlobal>20?'var(--red)':'var(--amber)';
 
-  body.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:32px;padding:20px">
+  body.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:48px">
     <div style="text-align:center">
-      <div style="font-size:16px;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px">Total averías activas</div>
-      <div style="font-size:100px;font-weight:800;font-family:var(--ff);color:${totalGlobal===0?'var(--green)':totalGlobal>10?'var(--red)':'var(--amber)'};line-height:1">${totalGlobal}</div>
+      <div style="font-size:14px;color:var(--t2);text-transform:uppercase;letter-spacing:.14em;margin-bottom:12px">Total averías activas — todas las islas</div>
+      <div style="font-size:130px;font-weight:800;font-family:var(--ff);color:${totalColor};line-height:1">${totalGlobal}</div>
     </div>
-    <div style="display:flex;gap:32px;flex-wrap:wrap;justify-content:center">
-      ${islaStats.map(s=>`
-        <div style="background:var(--bg2);border:0.5px solid ${s.alta>0?'rgba(224,85,85,.4)':'var(--border)'};border-radius:16px;padding:24px 32px;text-align:center;min-width:160px">
-          <div style="font-size:36px;margin-bottom:8px">${s.icon}</div>
-          <div style="font-size:16px;font-weight:700;font-family:var(--ff);color:var(--t1);margin-bottom:8px">${s.isla}</div>
-          <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:${s.total===0?'var(--green)':s.alta>0?'var(--red)':'var(--amber)'};line-height:1">${s.total}</div>
-          ${s.alta>0?`<div style="font-size:12px;color:var(--red);margin-top:6px">⚠ ${s.alta} urgente${s.alta>1?'s':''}</div>`:''}
-        </div>`).join('')}
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:24px;width:100%">
+      ${islaStats.map(s=>{
+        const col=s.total===0?'var(--green)':s.alta>0?'var(--red)':'var(--amber)';
+        return `<div style="background:var(--bg2);border:0.5px solid ${s.alta>0?'rgba(224,85,85,.4)':s.total>0?'rgba(240,160,48,.3)':'var(--border)'};border-radius:20px;padding:32px 20px;text-align:center">
+          <div style="font-size:48px;margin-bottom:12px">${s.icon}</div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--ff);color:var(--t1);margin-bottom:14px">${s.isla}</div>
+          <div style="font-size:72px;font-weight:800;font-family:var(--ff);color:${col};line-height:1">${s.total}</div>
+          <div style="font-size:13px;color:${col};margin-top:10px">${s.total===0?'Sin averías':s.alta>0?'⚠ '+s.alta+' urgente'+(s.alta>1?'s':''):s.total+' avería'+(s.total!==1?'s':'')}</div>
+        </div>`;
+      }).join('')}
     </div>
   </div>`;
 }
@@ -2375,12 +2378,15 @@ function renderPantallaTec(){
     body.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px;font-size:16px;grid-column:1/-1">Sin técnicos en esta isla</div>';
     return;
   }
-  body.style.gridTemplateColumns=tecs.length===1?'1fr':'repeat(2,1fr)';
+  // 4 columnas: foto | info+scroll | foto | info+scroll
+  body.style.gridTemplateColumns='repeat(4,1fr)';
   body.style.alignItems='stretch';
   body.style.overflow='hidden';
-  body.style.padding='16px';
+  body.style.padding='12px';
+  body.style.gap='10px';
 
-  body.innerHTML=tecs.map(t=>{
+  let html='';
+  tecs.forEach(t=>{
     const misAv=averias.filter(a=>a.tecnico_id===t.id||a.tecnico_nombre===t.nombre);
     const sorted=[...misAv].sort((a,b)=>{
       const ord={alta:0,media:1,baja:2};
@@ -2394,42 +2400,41 @@ function renderPantallaTec(){
 
     const fotoHtml=t.foto
       ?`<img src="${t.foto}" style="width:100%;height:100%;object-fit:cover;object-position:top center">`
-      :`<div style="width:100%;height:100%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800;font-family:var(--ff)">${t.ini}</div>`;
+      :`<div style="width:100%;height:100%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:80px;font-weight:800;font-family:var(--ff)">${t.ini}</div>`;
 
     const averiasHtml=sorted.map(a=>{
       const dem=formatDemora(a.fecha_aviso);
-      return `<div style="background:var(--bg3);border-radius:10px;padding:12px;border-left:3px solid ${a.urgencia==='alta'?'var(--red)':a.urgencia==='baja'?'var(--green)':'var(--amber)'}">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+      return `<div style="background:var(--bg3);border-radius:8px;padding:10px;border-left:3px solid ${a.urgencia==='alta'?'var(--red)':a.urgencia==='baja'?'var(--green)':'var(--amber)'}">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;flex-wrap:wrap">
           <span class="urg-badge ${urgClass(a.urgencia)}">${urgLabel(a.urgencia)}</span>
-          <span style="font-size:12px;color:var(--t2)">Máq. ${a.maquina_numero} — ${a.maquina_nombre}</span>
+          <span style="font-size:11px;color:var(--t2)">Máq. ${a.maquina_numero}</span>
         </div>
-        <div style="font-size:14px;font-weight:700;font-family:var(--ff);margin-bottom:4px">${a.titulo}</div>
-        <div style="font-size:11px;color:var(--t3)" class="${dem.clase}">⏱ ${dem.txt} de demora</div>
+        <div style="font-size:13px;font-weight:700;font-family:var(--ff);margin-bottom:3px">${a.titulo}</div>
+        <div style="font-size:10px;color:var(--t3)" class="${dem.clase}">⏱ ${dem.txt}</div>
       </div>`;
     }).join('');
 
-    return `<div style="display:grid;grid-template-rows:1fr auto 1fr;gap:10px;height:100%;overflow:hidden">
-      <!-- FOTO -->
-      <div style="border-radius:14px;overflow:hidden;border:2px solid ${borderColor}">
-        ${fotoHtml}
-      </div>
-      <!-- CÍRCULO AVERÍAS -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:16px">
-        <div style="width:90px;height:90px;border-radius:50%;border:3px solid ${borderColor};display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg2);flex-shrink:0">
-          <div style="font-size:32px;font-weight:800;font-family:var(--ff);color:${numColor};line-height:1">${total}</div>
-          <div style="font-size:9px;color:${numColor};text-align:center">averías</div>
+    // Columna foto
+    html+=`<div style="border-radius:14px;overflow:hidden;border:2px solid ${borderColor}">${fotoHtml}</div>`;
+
+    // Columna info + scroll
+    html+=`<div style="display:flex;flex-direction:column;gap:10px;overflow:hidden">
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+        <div style="width:76px;height:76px;border-radius:50%;border:3px solid ${borderColor};display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg2);flex-shrink:0">
+          <div style="font-size:26px;font-weight:800;font-family:var(--ff);color:${numColor};line-height:1">${total}</div>
+          <div style="font-size:9px;color:${numColor}">averías</div>
         </div>
         <div>
-          <div style="font-size:20px;font-weight:800;font-family:var(--ff);color:var(--t1)">${t.nombre}</div>
-          <div style="font-size:12px;color:${numColor};margin-top:3px">${total===0?'✓ Sin averías':'⚠ '+total+' pendiente'+(total!==1?'s':'')+(tieneAlta?' · URGENTE':'')}</div>
+          <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:var(--t1)">${t.nombre}</div>
+          <div style="font-size:11px;color:${numColor};margin-top:3px">${tieneAlta?'⚠ URGENTE':total>0?total+' pendientes':'✓ Sin averías'}</div>
         </div>
       </div>
-      <!-- LISTA AVERÍAS CON SCROLL -->
-      <div class="tec-pantalla-scroll" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;border:2px solid ${borderColor};border-radius:14px;padding:12px;background:var(--bg2)">
-        ${averiasHtml||'<div style="text-align:center;color:var(--green);padding:20px;font-size:14px">Sin averías pendientes</div>'}
+      <div class="tec-pantalla-scroll" style="flex:1;display:flex;flex-direction:column;gap:6px;overflow-y:auto;border:1.5px solid ${borderColor};border-radius:12px;padding:10px;background:var(--bg2)">
+        ${averiasHtml||'<div style="text-align:center;color:var(--green);padding:16px;font-size:13px">Sin averías pendientes</div>'}
       </div>
     </div>`;
-  }).join('');
+  });
+  body.innerHTML=html;
 }
 
 
