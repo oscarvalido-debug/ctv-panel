@@ -2305,7 +2305,9 @@ async function verificarClaveOrain(){
     document.getElementById('selector-screen').style.display='none';
     moduloActivo='orain';
     await cargarDatosOrain();
-    setInterval(actualizarRelojOrain,1000);
+    if(!window._orainRelojInterval){
+      window._orainRelojInterval=setInterval(actualizarRelojOrain,1000);
+    }
   } else {
     document.getElementById('orain-login-err').style.display='block';
     document.getElementById('orain-pwd').value='';
@@ -2329,10 +2331,14 @@ function actualizarRelojOrain(){
 
 // ── CARGAR DATOS SUPABASE ──
 async function cargarDatosOrain(){
+  // Show loading in vista
+  const vista=document.getElementById('orain-vista');
+  if(vista) vista.innerHTML='<div style="text-align:center;color:var(--t2);padding:40px 0;font-size:13px">⏳ Cargando datos de Supabase...</div>';
   try{
     const {data,error} = await sb.from('orain_maquinas').select('*');
     if(error) throw error;
     if(data && data.length){
+      console.log('ORAIN: '+data.length+' registros cargados de Supabase');
       // Map Supabase column names to JS object properties
       const islaMap={'LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura','GRAN CANARIA':'Gran Canaria','TENERIFE':'Tenerife'};
       orainData.maquinas = data.map(r=>({
@@ -2625,7 +2631,16 @@ function renderOrainUploadCards(){
     {id:'dispositivos',label:'3 — Listado de Otros Dispositivos',sub:'Máquinas con ORAIN instalado. Columna: Máquina'},
     {id:'audits',label:'4 — Dashboard Audits (Audit Monitor)',sub:'Columnas: ruta, maqcodigo, pdvubic, ultaudit — subir siempre el último'},
   ];
-  const cards=uploads.map(u=>`
+  const totalMaq=orainData.maquinas.length;
+  let html=`<div style="background:rgba(224,85,85,.08);border:0.5px solid rgba(224,85,85,.25);border-radius:12px;padding:14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <div style="font-size:13px;font-weight:700;font-family:var(--ff);color:var(--red)">⚠ Borrar todos los datos</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:3px">Elimina todo de Supabase. Tendrás que volver a subir los 4 archivos.</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">${totalMaq?totalMaq+' máquinas en base de datos':'Sin datos cargados'}</div>
+    </div>
+    <button onclick="borrarTodoOrain()" style="padding:8px 16px;border-radius:8px;border:0.5px solid rgba(224,85,85,.4);background:transparent;color:var(--red);font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">Borrar todo</button>
+  </div>`;
+  html+=uploads.map(u=>`
     <div class="orain-upload-card">
       <div class="orain-upload-label">${u.label}
         <span class="orain-status ${orainData.cargado[u.id]?'ok':'none'}" style="margin-left:8px">
@@ -2640,7 +2655,7 @@ function renderOrainUploadCards(){
     </div>`).join('');
 
   const container=document.getElementById('orain-upload-cards');
-  if(container) container.innerHTML=cards;
+  if(container) container.innerHTML=html;
 }
 
 // ── PROCESAR EXCEL ORAIN ──
@@ -2790,6 +2805,21 @@ async function procesarExcelOrain(tipo, input){
     }
   };
   reader.readAsBinaryString(file);
+}
+
+async function borrarTodoOrain(){
+  if(!confirm('¿Seguro que quieres borrar TODOS los datos ORAIN? Tendrás que volver a subir los 4 archivos Excel.')) return;
+  try{
+    await sb.from('orain_maquinas').delete().neq('cod_maq','__none__');
+    orainData.maquinas=[];
+    orainData.cargado={maquinas:false,audits:false,monederos:false,dispositivos:false};
+    renderOrainUploadCards();
+    document.getElementById('orain-upload-preview').innerHTML='';
+    renderOrainVista();
+    toast('Todos los datos ORAIN eliminados');
+  }catch(e){
+    toast('Error al borrar: '+e.message);
+  }
 }
 
 async function guardarOrainEnSupabase(tipo){
