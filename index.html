@@ -2270,10 +2270,10 @@ function iniciarCicloTec(){
   const fase=_tecFase%3;
   let duracion;
 
+  try{
   if(fase===0){
     duracion=30000;
     renderPantallaTec();
-    // Auto-scroll averias
     setTimeout(()=>{
       document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
         if(col.scrollHeight<=col.clientHeight) return;
@@ -2295,6 +2295,7 @@ function iniciarCicloTec(){
     duracion=10000;
     renderPantallaTecResumen();
   }
+  }catch(e){ console.error('Ciclo tec error fase '+fase+':', e); duracion=5000; }
 
   // Progress bar
   const bar=document.getElementById('tec-p-bar');
@@ -2343,13 +2344,14 @@ function renderPantallaTecResumen(){
   body.style.padding='40px 60px';
   body.style.gap='0';
 
-  const islaStats=ORAIN_ISLAS.map(isla=>{
+  const ISLAS_TEC=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+  const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+  const islaStats=ISLAS_TEC.map(isla=>{
     const tecsIsla=tecnicos.filter(t=>t.activo&&t.isla===isla);
     const avIsla=averias.filter(a=>tecsIsla.some(t=>t.id===a.tecnico_id||t.nombre===a.tecnico_nombre));
     const alta=avIsla.filter(a=>a.urgencia==='alta').length;
-    return {isla, total:avIsla.length, alta,
-      icon:({'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'})[isla]||'🏝️'};
-  }).filter(s=>s.isla); // all islands
+    return {isla, total:avIsla.length, alta, icon:iconMap[isla]||'🏝️'};
+  });
 
   const totalGlobal=averias.length;
   const totalColor=totalGlobal===0?'var(--green)':totalGlobal>20?'var(--red)':'var(--amber)';
