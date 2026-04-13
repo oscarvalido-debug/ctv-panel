@@ -74,7 +74,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .rep-rank{font-size:22px;font-weight:800;min-width:30px;font-family:var(--ff)}
 .r1{color:var(--gold)}.r2{color:var(--silver)}.r3{color:var(--bronze)}.r4{color:var(--t3)}
 .av{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;flex-shrink:0;overflow:hidden;font-family:var(--ff)}
-.av img{width:44px;height:44px;object-fit:contain;border-radius:50%;background:#1a1a22}
+.av img{width:44px;height:44px;object-fit:cover;border-radius:50%;object-position:top}
 .rep-info{flex:1;min-width:0}
 .rep-name{font-size:15px;font-weight:700;font-family:var(--ff);letter-spacing:-.01em}
 .rep-st{font-size:11px;margin-top:2px}
@@ -214,7 +214,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .pc-left{display:flex;flex-direction:column;align-items:center;gap:4px;flex-shrink:0}
 .pc-rank{font-size:26px;font-weight:800;font-family:var(--ff);line-height:1}
 .pc-av{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;font-family:var(--ff);overflow:hidden;flex-shrink:0}
-.pc-av img{width:60px;height:60px;object-fit:contain;border-radius:50%;background:#1a1a22}
+.pc-av img{width:60px;height:60px;object-fit:cover;border-radius:50%;object-position:top}
 .pc-st{font-size:11px;text-align:center}
 .pc-right{flex:1;min-width:0}
 .pc-name{font-size:16px;font-weight:800;font-family:var(--ff);letter-spacing:-.02em;margin-bottom:1px}
@@ -238,7 +238,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .podio-stage{display:flex;align-items:flex-end;gap:16px;margin-bottom:20px}
 .podio-bloque{display:flex;flex-direction:column;align-items:center;gap:10px}
 .podio-av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--ff);overflow:hidden}
-.podio-av img{width:100%;height:100%;object-fit:contain;border-radius:50%;background:#1a1a22}
+.podio-av img{width:100%;height:100%;object-fit:cover;border-radius:50%;object-position:top}
 .podio-nombre{font-weight:700;font-family:var(--ff);text-align:center}
 .podio-pts{font-weight:800;font-family:var(--ff);text-align:center;margin-top:2px}
 .podio-base{border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:center}
@@ -260,7 +260,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .rgi-rank{font-size:28px;font-weight:800;font-family:var(--ff);min-width:40px}
 .rgi-icon{font-size:32px;flex-shrink:0}
 .rgi-av{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;font-family:var(--ff);flex-shrink:0;overflow:hidden}
-.rgi-av img{width:52px;height:52px;object-fit:contain;border-radius:50%;background:#1a1a22}
+.rgi-av img{width:52px;height:52px;object-fit:cover;border-radius:50%;object-position:top}
 .rgi-info{flex:1}
 .rgi-name{font-size:18px;font-weight:700;font-family:var(--ff);letter-spacing:-.01em}
 .rgi-isla{font-size:12px;color:var(--t2);margin-top:3px}
@@ -309,7 +309,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .tec-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
 .tec-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
 .tec-av{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;flex-shrink:0;overflow:hidden;font-family:var(--ff)}
-.tec-av img{width:52px;height:52px;object-fit:contain;border-radius:50%;background:#1a1a22}
+.tec-av img{width:52px;height:52px;object-fit:cover;border-radius:50%;object-position:top}
 .tec-info{flex:1}
 .tec-name{font-size:16px;font-weight:700;font-family:var(--ff)}
 .tec-count{font-size:13px;color:var(--t2);margin-top:3px}
@@ -819,7 +819,7 @@ async function limpiarHistoricoAntiguo(){
 // ═══════════════════════════════════════════════
 function avHtml(r,size){
   const c=COLORES_REP[r.colorIdx||0];
-  if(r.foto) return `<div class="av" style="width:${size}px;height:${size}px"><img src="${r.foto}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:50%;background:#1a1a22"></div>`;
+  if(r.foto) return `<div class="av" style="width:${size}px;height:${size}px"><img src="${r.foto}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:50%;object-position:top"></div>`;
   return `<div class="av" style="width:${size}px;height:${size}px;background:${c.bg};color:${c.c};font-size:${Math.round(size*.32)}px">${r.ini}</div>`;
 }
 function estLbl(e){
@@ -1418,7 +1418,7 @@ function renderPantalla(animIds=[]){
     const p=pts(r),pct=Math.round(Math.max(p/maxP*100,0));
     const col=COLORES_REP[r.colorIdx||0],rc=RC[i]||RC[3];
     const anim=animIds.includes(r.id)?'updated':'';
-    const av=r.foto?`<div class="pc-av"><img src="${r.foto}" style="width:60px;height:60px;object-fit:contain;border-radius:50%;background:#1a1a22"></div>`:`<div class="pc-av" style="background:${col.bg};color:${col.c}">${r.ini}</div>`;
+    const av=r.foto?`<div class="pc-av"><img src="${r.foto}" style="width:60px;height:60px;object-fit:cover;border-radius:50%;object-position:top"></div>`:`<div class="pc-av" style="background:${col.bg};color:${col.c}">${r.ini}</div>`;
     const errNames=r.maqError.length>0?`<div class="pc-err-names">⚠ ${r.maqError.join(' · ')}</div>`:'';
     const cfgNames=r.maqMalConfig.length>0?`<div class="pc-err-names" style="color:var(--amber)">⚙ ${r.maqMalConfig.join(' · ')}</div>`:'';
     html+=`<div class="pc ${PC[i]||''} ${anim}">
@@ -1474,7 +1474,7 @@ function mostrarPodio(){
   orden.forEach((r,i)=>{
     if(!r)return;
     const col=COLORES_REP[r.colorIdx||0],cf=cfg[i];
-    const av=r.foto?`<img src="${r.foto}" style="width:${cf.sz}px;height:${cf.sz}px;object-fit:contain;border-radius:50%;background:#1a1a22">`:`<div style="font-size:${Math.round(cf.sz*.3)}px">${r.ini}</div>`;
+    const av=r.foto?`<img src="${r.foto}" style="width:${cf.sz}px;height:${cf.sz}px;object-fit:cover;border-radius:50%;object-position:top">`:`<div style="font-size:${Math.round(cf.sz*.3)}px">${r.ini}</div>`;
     html+=`<div class="podio-bloque" style="animation:podioUp .7s ${i*.15+.1}s ease both">
       <div class="podio-nombre" style="color:${cf.t};font-size:${i===1?18:14}px">${r.nombre}</div>
       <div class="podio-pts" style="color:${cf.t};font-size:${i===1?20:16}px">${pts(r)} pts</div>
@@ -1668,7 +1668,7 @@ async function cargarAverias(){
 
 function avTecHtml(t, size){
   const c = COLORES_REP[t.colorIdx||0];
-  if(t.foto) return `<div class="tec-av" style="width:${size}px;height:${size}px"><img src="${t.foto}" style="width:${size}px;height:${size}px;object-fit:contain;border-radius:50%;background:#1a1a22"></div>`;
+  if(t.foto) return `<div class="tec-av" style="width:${size}px;height:${size}px"><img src="${t.foto}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:50%;object-position:top"></div>`;
   return `<div class="tec-av" style="width:${size}px;height:${size}px;background:${c.bg};color:${c.c};font-size:${Math.round(size*.32)}px">${t.ini}</div>`;
 }
 
@@ -2310,7 +2310,7 @@ function renderPantallaTecAvatares(){
     const tieneAlta=misAv.some(a=>a.urgencia==='alta');
     const c=COLORES_REP[t.colorIdx||0];
     const avHtml=t.foto
-      ?`<img src="${t.foto}" style="width:160px;height:160px;object-fit:contain;border-radius:50%;background:#1a1a22;border:4px solid ${tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)'}">`
+      ?`<img src="${t.foto}" style="width:160px;height:160px;object-fit:cover;border-radius:50%;object-position:top;border:4px solid ${tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)'}">`
       :`<div style="width:160px;height:160px;border-radius:50%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:800;font-family:var(--ff);border:4px solid ${tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)'}">${t.ini}</div>`;
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:20px">
       ${avHtml}
@@ -2375,7 +2375,7 @@ function renderPantallaTec(){
     });
     const tieneAlta=misAv.some(a=>a.urgencia==='alta');
     const c=COLORES_REP[t.colorIdx||0];
-    const av=t.foto?`<img src="${t.foto}" style="width:72px;height:72px;object-fit:contain;border-radius:50%;background:#1a1a22">`
+    const av=t.foto?`<img src="${t.foto}" style="width:72px;height:72px;object-fit:cover;border-radius:50%;object-position:top">`
       :`<div style="width:72px;height:72px;border-radius:50%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;font-family:var(--ff)">${t.ini}</div>`;
 
     html+=`<div style="background:var(--bg2);border:0.5px solid ${tieneAlta?'rgba(224,85,85,.4)':'var(--border)'};border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
