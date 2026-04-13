@@ -2053,9 +2053,9 @@ function renderCambiosAdmin(){
     const tipo=c.tipo_movimiento||'cambio';
     const tieneRetirar=c.maq_retirar||c.modelo_retirar;
     const tieneColocar=c.maq_colocar||c.modelo_colocar;
-    return `<div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+    return `<div style="background:var(--bg2);border:0.5px solid ${tipo==='instalacion'?'rgba(61,207,142,.3)':tipo==='retirada'?'rgba(224,85,85,.3)':'rgba(91,156,246,.3)'};border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
       <div style="flex:1">
-        <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${islaIcon(c.isla)} ${c.isla} — 📍 ${c.comercio||'Sin nombre'}</div>
+        <div style="font-size:12px;font-weight:700;color:${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)'};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${islaIcon(c.isla)} ${c.isla} — 📍 ${c.comercio||'Sin nombre'}</div>
         <div style="display:grid;grid-template-columns:${tieneRetirar&&tieneColocar?'1fr 1fr':tieneRetirar?'1fr':'1fr'};gap:8px">
           ${tieneRetirar?`<div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
             <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
@@ -2463,38 +2463,92 @@ function iniciarCicloTec(){
   _tecScrollIntervals.forEach(id=>clearInterval(id));
   _tecScrollIntervals=[];
 
-  const fase=_tecFase%4;
+  const isGeneral = islaActivaTec==='general';
+  const ISLAS_TEC_LIST=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+
+  // General mode: cycle through each island (15s each) + movimientos (10s) + resumen (20s)
+  // Island mode: averias(30s) + movimientos(15s) + avatares(20s) + resumen(10s)
   let duracion;
 
   try{
-  if(fase===0){
-    duracion=30000;
-    renderPantallaTec();
-    setTimeout(()=>{
-      document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
-        if(col.scrollHeight<=col.clientHeight) return;
-        let dir=1;
-        const id=setInterval(()=>{
-          col.scrollTop+=dir*1;
-          if(col.scrollTop+col.clientHeight>=col.scrollHeight-2){
-            dir=-1; setTimeout(()=>{ dir=1; },2000);
-          }
-          if(col.scrollTop<=0&&dir===-1) dir=1;
-        },40);
-        _tecScrollIntervals.push(id);
-      });
-    },600);
-  } else if(fase===1){
-    duracion=15000;
-    renderPantallaTecMovimientos();
-  } else if(fase===2){
-    duracion=20000;
-    renderPantallaTecAvatares();
+  if(isGeneral){
+    const totalFases = ISLAS_TEC_LIST.length + 2; // 4 islands + movimientos + resumen
+    const fase = _tecFase % totalFases;
+    if(fase < ISLAS_TEC_LIST.length){
+      // Show each island's tecnico view
+      duracion=15000;
+      const islaTemp = ISLAS_TEC_LIST[fase];
+      const body=document.getElementById('pantalla-tec-body');
+      if(body){
+        body.style.gridTemplateColumns='repeat(4,1fr)';
+        body.style.alignItems='stretch';
+        body.style.overflow='hidden';
+        body.style.padding='12px';
+        body.style.gap='10px';
+        // Temporarily render for this island
+        const savedIsla=islaActivaTec;
+        islaActivaTec=islaTemp;
+        renderPantallaTec();
+        islaActivaTec=savedIsla;
+        // Add island label overlay
+        const label=document.createElement('div');
+        label.style.cssText='position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#ff8c00;font-size:13px;font-weight:700;padding:4px 14px;border-radius:20px;font-family:var(--ff);z-index:10';
+        const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+        label.textContent=iconMap[islaTemp]+' '+islaTemp;
+        body.style.position='relative';
+        body.appendChild(label);
+        // Auto-scroll
+        setTimeout(()=>{
+          document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
+            if(col.scrollHeight<=col.clientHeight) return;
+            let dir=1;
+            const id=setInterval(()=>{
+              col.scrollTop+=dir*1;
+              if(col.scrollTop+col.clientHeight>=col.scrollHeight-2){ dir=-1; setTimeout(()=>{ dir=1; },1500); }
+              if(col.scrollTop<=0&&dir===-1) dir=1;
+            },40);
+            _tecScrollIntervals.push(id);
+          });
+        },600);
+      }
+    } else if(fase===ISLAS_TEC_LIST.length){
+      duracion=10000;
+      renderPantallaTecMovimientos();
+    } else {
+      duracion=20000;
+      renderPantallaTecResumen();
+    }
   } else {
-    duracion=10000;
-    renderPantallaTecResumen();
+    const fase=_tecFase%4;
+    if(fase===0){
+      duracion=30000;
+      renderPantallaTec();
+      setTimeout(()=>{
+        document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
+          if(col.scrollHeight<=col.clientHeight) return;
+          let dir=1;
+          const id=setInterval(()=>{
+            col.scrollTop+=dir*1;
+            if(col.scrollTop+col.clientHeight>=col.scrollHeight-2){
+              dir=-1; setTimeout(()=>{ dir=1; },2000);
+            }
+            if(col.scrollTop<=0&&dir===-1) dir=1;
+          },40);
+          _tecScrollIntervals.push(id);
+        });
+      },600);
+    } else if(fase===1){
+      duracion=15000;
+      renderPantallaTecMovimientos();
+    } else if(fase===2){
+      duracion=20000;
+      renderPantallaTecAvatares();
+    } else {
+      duracion=10000;
+      renderPantallaTecResumen();
+    }
   }
-  }catch(e){ console.error('Ciclo tec error fase '+fase+':', e); duracion=5000; }
+  }catch(e){ console.error('Ciclo tec error:', e); duracion=5000; }
 
   // Progress bar
   const bar=document.getElementById('tec-p-bar');
@@ -2540,8 +2594,8 @@ function renderPantallaTecMovimientos(){
             <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
               ${g.movs.map(c=>{
                 const tipo=c.tipo_movimiento||'cambio';
-                return `<div style="background:var(--bg3);border-radius:10px;padding:10px;border-left:3px solid ${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'#ff8c00'}">
-                  <div style="font-size:11px;font-weight:700;color:${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'#ff8c00'};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${c.comercio||'Sin nombre'}</div>
+                return `<div style="background:var(--bg3);border-radius:10px;padding:10px;border-left:3px solid ${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)'}">
+                  <div style="font-size:11px;font-weight:700;color:${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)'};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${c.comercio||'Sin nombre'}</div>
                   <div style="display:flex;gap:8px">
                     ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
                       <div style="font-size:9px;color:var(--red)">RETIRAR</div>
