@@ -1644,7 +1644,7 @@ function volverSelector(){
 let tecnicos = [];
 let averias  = [];
 let islaActivaTec = 'Lanzarote';
-let cambiosMaquina = []; // {id, isla, maq_retirar, modelo_retirar, comercio, maq_colocar, modelo_colocar, estado}
+let movimientosMaquina = []; // {id, isla, maq_retirar, modelo_retirar, comercio, maq_colocar, modelo_colocar, estado}
 
 async function cargarTecnicos(){
   try{
@@ -1663,7 +1663,7 @@ async function cargarCambiosMaquina(){
   try{
     const {data,error}=await sb.from('cambios_maquina').select('*').eq('estado','pendiente').order('created_at',{ascending:false});
     if(error) throw error;
-    cambiosMaquina=data||[];
+    movimientosMaquina=data||[];
   }catch(e){ console.error('Error cargando cambios maquina:',e); }
 }
 
@@ -1702,7 +1702,9 @@ function urgLabel(u){ return u==='alta'?'⚠ Alta':u==='baja'?'Baja':'Media'; }
 function renderIslasTecnicos(){
   const tabs = document.getElementById('isla-tabs-tec');
   if(!tabs) return;
-  tabs.innerHTML = ISLAS.filter(i=>i.id!=='general').map(isla=>`
+  tabs.innerHTML = `<button class="isla-tab ${islaActivaTec==='general'?'active':''}" onclick="cambiarIslaTec('general')" style="${islaActivaTec==='general'?'color:#ff8c00;border-bottom-color:#ff8c00':''}">
+      🌐 General
+    </button>`+ISLAS.filter(i=>i.id!=='general').map(isla=>`
     <button class="isla-tab ${islaActivaTec===isla.id?'active':''}" onclick="cambiarIslaTec('${isla.id}')">
       <span class="isla-icon">${isla.icon}</span>${isla.label}
     </button>`).join('');
@@ -1714,12 +1716,46 @@ function cambiarIslaTec(isla){
   renderIslasTecnicos();
   const titulo = document.getElementById('titulo-isla-tec');
   const islaObj = ISLAS.find(i=>i.id===isla);
-  if(titulo) titulo.textContent = `Técnicos — ${islaObj?.label||isla}`;
+  if(titulo) titulo.textContent = isla==='general'?'Técnicos — General':`Técnicos — ${islaObj?.label||isla}`;
 }
 
 function renderTecnicos(){
   const lista = document.getElementById('tecnicos-list');
   if(!lista) return;
+
+  // Vista General: resumen de todas las islas
+  if(islaActivaTec==='general'){
+    const ISLAS_TEC=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+    const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+    lista.innerHTML=`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+      ${ISLAS_TEC.map(isla=>{
+        const tecsIsla=tecnicos.filter(t=>t.activo&&t.isla===isla);
+        const avIsla=averias.filter(a=>tecsIsla.some(t=>t.id===a.tecnico_id||t.nombre===a.tecnico_nombre));
+        const movIsla=movimientosMaquina.filter(m=>m.isla===isla);
+        const alta=avIsla.filter(a=>a.urgencia==='alta').length;
+        return `<div style="background:var(--bg2);border:0.5px solid ${alta>0?'rgba(224,85,85,.3)':'var(--border)'};border-radius:14px;padding:16px">
+          <div style="font-size:16px;font-weight:800;font-family:var(--ff);margin-bottom:12px">${iconMap[isla]} ${isla}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Técnicos</div>
+              <div style="font-size:24px;font-weight:800;font-family:var(--ff);color:var(--blue)">${tecsIsla.length}</div>
+            </div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Averías</div>
+              <div style="font-size:24px;font-weight:800;font-family:var(--ff);color:${alta>0?'var(--red)':avIsla.length>0?'var(--amber)':'var(--green)'}">${avIsla.length}</div>
+            </div>
+            <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:var(--t2);margin-bottom:4px">Movimientos</div>
+              <div style="font-size:24px;font-weight:800;font-family:var(--ff);color:${movIsla.length>0?'#ff8c00':'var(--green)'}">${movIsla.length}</div>
+            </div>
+          </div>
+          ${alta>0?`<div style="font-size:11px;color:var(--red);margin-top:8px">⚠ ${alta} avería${alta>1?'s':''} urgente${alta>1?'s':''}</div>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+    return;
+  }
+
   const tecs = tecnicos.filter(t=>t.activo && t.isla===islaActivaTec);
   if(!tecs.length){
     lista.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px 0;font-size:14px">No hay técnicos asignados a esta isla.</div>';
@@ -1766,30 +1802,30 @@ function renderTecnicos(){
   }
 
   // Build cambios column for this isla
-  const cambiosIsla=cambiosMaquina.filter(c=>c.isla===islaActivaTec);
+  const cambiosIsla=movimientosMaquina.filter(c=>c.isla===islaActivaTec);
   const cambiosCol=`<div class="tec-card" style="height:100%;display:flex;flex-direction:column">
     <div class="tec-header" style="margin-bottom:10px">
       <div style="width:36px;height:36px;border-radius:50%;background:rgba(255,140,0,.15);display:flex;align-items:center;justify-content:center;font-size:18px">🔄</div>
       <div class="tec-info">
-        <div class="tec-name">Cambios pendientes</div>
+        <div class="tec-name">Movimientos pendientes</div>
         <div class="tec-count">${cambiosIsla.length} cambio${cambiosIsla.length!==1?'s':''}</div>
       </div>
     </div>
     <div style="flex:1;overflow-y:auto">
       ${cambiosIsla.length?cambiosIsla.map(c=>`
         <div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px;border-left:3px solid #ff8c00">
-          <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">📍 ${c.comercio||'Sin nombre'}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-            <div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+          <div style="font-size:11px;font-weight:700;color:#ff8c00;margin-bottom:6px">${tipoMovIcon(c.tipo_movimiento||'cambio')} ${tipoMovLabel(c.tipo_movimiento||'cambio')} — 📍 ${c.comercio||'Sin nombre'}</div>
+          <div style="display:grid;grid-template-columns:${(c.maq_retirar&&c.maq_colocar)?'1fr 1fr':'1fr'};gap:6px">
+            ${c.maq_retirar?`<div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
               <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
-              <div style="font-size:12px;font-weight:700;color:var(--t1)">${c.maq_retirar||'—'}</div>
+              <div style="font-size:11px;font-weight:700;color:var(--t1)">${c.maq_retirar}</div>
               <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
-            </div>
-            <div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
-              <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Colocar</div>
-              <div style="font-size:12px;font-weight:700;color:var(--t1)">${c.maq_colocar||'—'}</div>
+            </div>`:''}
+            ${c.maq_colocar?`<div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+              <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Instalar</div>
+              <div style="font-size:11px;font-weight:700;color:var(--t1)">${c.maq_colocar}</div>
               <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
-            </div>
+            </div>`:''}
           </div>
         </div>`).join('')
       :'<div style="text-align:center;color:var(--green);font-size:13px;padding:20px 0">Sin cambios pendientes</div>'}
@@ -1857,7 +1893,7 @@ function renderAdminTecHtml(){
     <div class="sup-tabs" style="margin-bottom:14px">
       <button class="sup-tab active" onclick="adminTecTab('tecnicos',this)">Técnicos</button>
       <button class="sup-tab" onclick="adminTecTab('averias',this)">Averías</button>
-      <button class="sup-tab" onclick="adminTecTab('cambios',this)">Cambios máquina</button>
+      <button class="sup-tab" onclick="adminTecTab('cambios',this)">Movimientos máquina</button>
     </div>
     <div id="admin-tec-panel">`;
 
@@ -1941,18 +1977,40 @@ function renderAdminTecHtml(){
     </div>
     <div id="admin-cambios-panel" style="display:none">
       <div style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:14px">
-        <div style="font-size:13px;font-weight:700;font-family:var(--ff);margin-bottom:12px">Añadir cambio de máquina</div>
+        <div style="font-size:13px;font-weight:700;font-family:var(--ff);margin-bottom:12px">Añadir movimiento de máquina</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-          <div class="field"><label>Isla</label><select id="cm-isla"><option value="Lanzarote">Lanzarote</option><option value="Fuerteventura">Fuerteventura</option><option value="Gran Canaria">Gran Canaria</option><option value="Tenerife">Tenerife</option></select></div>
-          <div class="field"><label>Nombre del comercio</label><input type="text" id="cm-comercio" placeholder="Ej: Bar La Playa"></div>
-          <div class="field"><label>Máquina a retirar (Nº)</label><input type="text" id="cm-maq-ret" placeholder="Ej: G14852"></div>
-          <div class="field"><label>Modelo a retirar</label><input type="text" id="cm-mod-ret" placeholder="Ej: Jofemar Vision"></div>
-          <div class="field"><label>Máquina a colocar (Nº)</label><input type="text" id="cm-maq-col" placeholder="Ej: T1234"></div>
-          <div class="field"><label>Modelo a colocar</label><input type="text" id="cm-mod-col" placeholder="Ej: Necta Colibri"></div>
+          <div class="field"><label>Isla</label>
+            <select id="cm-isla"><option value="Lanzarote">Lanzarote</option><option value="Fuerteventura">Fuerteventura</option><option value="Gran Canaria">Gran Canaria</option><option value="Tenerife">Tenerife</option></select>
+          </div>
+          <div class="field"><label>Tipo de movimiento</label>
+            <select id="cm-tipo" onchange="actualizarFormMovimiento()">
+              <option value="instalacion">📦 Instalación</option>
+              <option value="cambio">🔄 Cambio</option>
+              <option value="retirada">📤 Retirada</option>
+            </select>
+          </div>
+          <div class="field full"><label>Nombre del comercio</label><input type="text" id="cm-comercio" placeholder="Ej: Bar La Playa"></div>
         </div>
-        <button onclick="añadirCambioMaquina()" class="save-btn">Registrar cambio</button>
+        <!-- Campos instalación -->
+        <div id="cm-fields-instalacion" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="field"><label>Nº máquina a instalar</label><input type="text" id="cm-maq-col-ins" placeholder="Ej: T1234"></div>
+          <div class="field"><label>Modelo</label><input type="text" id="cm-mod-col-ins" placeholder="Ej: Necta Colibri"></div>
+        </div>
+        <!-- Campos cambio -->
+        <div id="cm-fields-cambio" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="field"><label>Nº máquina a retirar</label><input type="text" id="cm-maq-ret" placeholder="Ej: G14852"></div>
+          <div class="field"><label>Modelo a retirar</label><input type="text" id="cm-mod-ret" placeholder="Ej: Jofemar Vision"></div>
+          <div class="field"><label>Nº máquina a instalar</label><input type="text" id="cm-maq-col" placeholder="Ej: T1234"></div>
+          <div class="field"><label>Modelo a instalar</label><input type="text" id="cm-mod-col" placeholder="Ej: Necta Colibri"></div>
+        </div>
+        <!-- Campos retirada -->
+        <div id="cm-fields-retirada" style="display:none;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+          <div class="field"><label>Nº máquina a retirar</label><input type="text" id="cm-maq-ret-ret" placeholder="Ej: G14852"></div>
+          <div class="field"><label>Modelo</label><input type="text" id="cm-mod-ret-ret" placeholder="Ej: Jofemar Vision"></div>
+        </div>
+        <button onclick="añadirCambioMaquina()" class="save-btn">Registrar movimiento</button>
       </div>
-      <div class="sec-lbl" style="margin-top:12px">Cambios pendientes</div>
+      <div class="sec-lbl" style="margin-top:12px">Movimientos pendientes</div>
       <div id="cambios-activos-list">${renderCambiosAdmin()}</div>
     </div>
   </div>`;
@@ -1986,39 +2044,63 @@ function adminTecTab(tab, btn){
   document.getElementById(panelId).style.display='';
 }
 
+function tipoMovIcon(tipo){ return tipo==='instalacion'?'📦':tipo==='retirada'?'📤':'🔄'; }
+function tipoMovLabel(tipo){ return tipo==='instalacion'?'Instalación':tipo==='retirada'?'Retirada':'Cambio'; }
+
 function renderCambiosAdmin(){
-  if(!cambiosMaquina.length) return '<div style="text-align:center;color:var(--t3);padding:24px 0">Sin cambios pendientes</div>';
-  return cambiosMaquina.map(c=>`
-    <div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+  if(!movimientosMaquina.length) return '<div style="text-align:center;color:var(--t3);padding:24px 0">Sin movimientos pendientes</div>';
+  return movimientosMaquina.map(c=>{
+    const tipo=c.tipo_movimiento||'cambio';
+    const tieneRetirar=c.maq_retirar||c.modelo_retirar;
+    const tieneColocar=c.maq_colocar||c.modelo_colocar;
+    return `<div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
       <div style="flex:1">
-        <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">${islaIcon(c.isla)} ${c.isla} — 📍 ${c.comercio||'Sin nombre'}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          <div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+        <div style="font-size:12px;font-weight:700;color:#ff8c00;margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${islaIcon(c.isla)} ${c.isla} — 📍 ${c.comercio||'Sin nombre'}</div>
+        <div style="display:grid;grid-template-columns:${tieneRetirar&&tieneColocar?'1fr 1fr':tieneRetirar?'1fr':'1fr'};gap:8px">
+          ${tieneRetirar?`<div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
             <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
             <div style="font-size:12px;font-weight:700">${c.maq_retirar||'—'}</div>
             <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
-          </div>
-          <div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
-            <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Colocar</div>
+          </div>`:''}
+          ${tieneColocar?`<div style="background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+            <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Instalar</div>
             <div style="font-size:12px;font-weight:700">${c.maq_colocar||'—'}</div>
             <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
-          </div>
+          </div>`:''}
         </div>
       </div>
       <button onclick="marcarCambioRealizado('${c.id}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(61,207,142,.3);background:transparent;color:var(--green);font-size:11px;cursor:pointer;flex-shrink:0">✓ Realizado</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function actualizarFormMovimiento(){
+  const tipo=document.getElementById('cm-tipo')?.value;
+  document.getElementById('cm-fields-instalacion').style.display=tipo==='instalacion'?'grid':'none';
+  document.getElementById('cm-fields-cambio').style.display=tipo==='cambio'?'grid':'none';
+  document.getElementById('cm-fields-retirada').style.display=tipo==='retirada'?'grid':'none';
 }
 
 async function añadirCambioMaquina(){
   const isla=document.getElementById('cm-isla')?.value;
+  const tipo=document.getElementById('cm-tipo')?.value||'cambio';
   const comercio=document.getElementById('cm-comercio')?.value.trim();
-  const maq_retirar=document.getElementById('cm-maq-ret')?.value.trim();
-  const modelo_retirar=document.getElementById('cm-mod-ret')?.value.trim();
-  const maq_colocar=document.getElementById('cm-maq-col')?.value.trim();
-  const modelo_colocar=document.getElementById('cm-mod-col')?.value.trim();
   if(!comercio){ toast('Indica el nombre del comercio'); return; }
+  let maq_retirar='', modelo_retirar='', maq_colocar='', modelo_colocar='';
+  if(tipo==='instalacion'){
+    maq_colocar=document.getElementById('cm-maq-col-ins')?.value.trim();
+    modelo_colocar=document.getElementById('cm-mod-col-ins')?.value.trim();
+  } else if(tipo==='cambio'){
+    maq_retirar=document.getElementById('cm-maq-ret')?.value.trim();
+    modelo_retirar=document.getElementById('cm-mod-ret')?.value.trim();
+    maq_colocar=document.getElementById('cm-maq-col')?.value.trim();
+    modelo_colocar=document.getElementById('cm-mod-col')?.value.trim();
+  } else {
+    maq_retirar=document.getElementById('cm-maq-ret-ret')?.value.trim();
+    modelo_retirar=document.getElementById('cm-mod-ret-ret')?.value.trim();
+  }
   const {data,error}=await sb.from('cambios_maquina').insert([{
-    isla, comercio, maq_retirar, modelo_retirar, maq_colocar, modelo_colocar, estado:'pendiente'
+    isla, comercio, maq_retirar, modelo_retirar, maq_colocar, modelo_colocar, estado:'pendiente', tipo_movimiento:tipo
   }]).select();
   if(error){ toast('Error: '+error.message); return; }
   await cargarCambiosMaquina();
@@ -2381,7 +2463,7 @@ function iniciarCicloTec(){
   _tecScrollIntervals.forEach(id=>clearInterval(id));
   _tecScrollIntervals=[];
 
-  const fase=_tecFase%3;
+  const fase=_tecFase%4;
   let duracion;
 
   try{
@@ -2403,6 +2485,9 @@ function iniciarCicloTec(){
       });
     },600);
   } else if(fase===1){
+    duracion=15000;
+    renderPantallaTecMovimientos();
+  } else if(fase===2){
     duracion=20000;
     renderPantallaTecAvatares();
   } else {
@@ -2420,6 +2505,61 @@ function iniciarCicloTec(){
 
   _tecFase++;
   _tecCicloTimer=setTimeout(iniciarCicloTec, duracion);
+}
+
+function renderPantallaTecMovimientos(){
+  const body=document.getElementById('pantalla-tec-body');
+  if(!body) return;
+  body.style.gridTemplateColumns='1fr';
+  body.style.alignItems='stretch';
+  body.style.padding='24px 40px';
+  body.style.gap='0';
+
+  const ISLAS_TEC=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+  const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+  const total=movimientosMaquina.length;
+  const totalColor=total===0?'var(--green)':total>5?'var(--red)':'#ff8c00';
+
+  // Group by island
+  const porIsla=ISLAS_TEC.map(isla=>({
+    isla, icon:iconMap[isla],
+    movs:movimientosMaquina.filter(m=>m.isla===isla)
+  })).filter(g=>g.movs.length>0);
+
+  body.innerHTML=`
+    <div style="display:flex;flex-direction:column;height:100%;gap:16px">
+      <div style="text-align:center;flex-shrink:0">
+        <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Movimientos de máquinas pendientes</div>
+        <div style="font-size:64px;font-weight:800;font-family:var(--ff);color:${totalColor};line-height:1">${total}</div>
+      </div>
+      ${total===0?'<div style="text-align:center;color:var(--green);font-size:18px;margin-top:20px">✓ Sin movimientos pendientes</div>':`
+      <div style="flex:1;display:grid;grid-template-columns:repeat(${Math.min(porIsla.length,2)},1fr);gap:14px;overflow:hidden">
+        ${porIsla.map(g=>`
+          <div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:14px;padding:16px;display:flex;flex-direction:column;overflow:hidden">
+            <div style="font-size:16px;font-weight:800;font-family:var(--ff);color:#ff8c00;margin-bottom:12px;flex-shrink:0">${g.icon} ${g.isla} — ${g.movs.length} movimiento${g.movs.length!==1?'s':''}</div>
+            <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+              ${g.movs.map(c=>{
+                const tipo=c.tipo_movimiento||'cambio';
+                return `<div style="background:var(--bg3);border-radius:10px;padding:10px;border-left:3px solid ${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'#ff8c00'}">
+                  <div style="font-size:11px;font-weight:700;color:${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'#ff8c00'};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${c.comercio||'Sin nombre'}</div>
+                  <div style="display:flex;gap:8px">
+                    ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+                      <div style="font-size:9px;color:var(--red)">RETIRAR</div>
+                      <div style="font-size:13px;font-weight:700">${c.maq_retirar}</div>
+                      <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
+                    </div>`:''}
+                    ${c.maq_colocar?`<div style="flex:1;background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+                      <div style="font-size:9px;color:var(--green)">INSTALAR</div>
+                      <div style="font-size:13px;font-weight:700">${c.maq_colocar}</div>
+                      <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
+                    </div>`:''}
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
 }
 
 function renderPantallaTecAvatares(){
