@@ -3001,17 +3001,20 @@ function renderOrainVista(){
       console.log('Isla ' + isla + ': ' + m.length);
       const total = m.length;
       if(!total) return null;
-      const conOrain = m.filter(x=>x.estado_orain==='INSTALADO').length;
-      const conTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&x.ultimo_audit).length;
+      const conOrain  = m.filter(x=>x.estado_orain==='INSTALADO').length;
+      const conTele   = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit).length;
       const pendOrain = m.filter(x=>x.estado_orain==='PENDIENTE').length;
-      const pendTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&!x.ultimo_audit).length;
-      // Score: positivos - negativos, sobre el máximo posible
-      const maxPts = total * 2;
+      // Pendiente telemetría REAL: tiene ORAIN, es telemetría (no bluetooth/imposible), pero sin audit
+      const pendTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&!x.ultimo_audit).length;
+      const imposibles = m.filter(x=>x.estado_orain==='IMPOSIBLE'||x.tiene_monedero).length;
+      // Excluir imposibles del máximo — no penalizan ni puntúan
+      const posibles = Math.max(1, total - imposibles);
+      const maxPts = posibles * 2;
       const pts = (conOrain + conTele) - (pendOrain + pendTele);
       const score = Math.round((pts / maxPts) * 100);
-      const pctOrain = Math.round(conOrain/total*100);
+      const pctOrain = Math.round(conOrain/posibles*100);
       const pctTele  = conOrain>0?Math.round(conTele/conOrain*100):0;
-      return {isla, total, conOrain, conTele, pendOrain, pendTele, score, pctOrain, pctTele,
+      return {isla, total, conOrain, conTele, pendOrain, pendTele, imposibles, score, pctOrain, pctTele,
         icon: ({'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'})[isla]||'🏝️'};
     }).filter(Boolean).sort(function(a,b){return b.score-a.score;});
 
@@ -3757,8 +3760,10 @@ function renderPantallaOrainRanking(body){
     const conOrain=m.filter(x=>x.estado_orain==='INSTALADO').length;
     const conTele=m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit).length;
     const pendOrain=m.filter(x=>x.estado_orain==='PENDIENTE').length;
-    const pendTele=m.filter(x=>x.estado_orain==='INSTALADO'&&(!x.es_telemetria||!x.ultimo_audit)).length;
-    const maxPts=total*2;
+    const pendTele=m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&!x.ultimo_audit).length;
+    const imposibles=m.filter(x=>x.estado_orain==='IMPOSIBLE'||x.tiene_monedero).length;
+    const posibles=Math.max(1,total-imposibles);
+    const maxPts=posibles*2;
     const pts=(conOrain+conTele)-(pendOrain+pendTele);
     const score=Math.round((pts/maxPts)*100);
     return {isla,total,conOrain,conTele,pendOrain,pendTele,score,
