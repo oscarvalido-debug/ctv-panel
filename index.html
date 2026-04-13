@@ -1812,9 +1812,12 @@ function renderTecnicos(){
       </div>
     </div>
     <div style="flex:1;overflow-y:auto">
-      ${cambiosIsla.length?cambiosIsla.map(c=>`
-        <div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px;border-left:3px solid #ff8c00">
-          <div style="font-size:11px;font-weight:700;color:#ff8c00;margin-bottom:6px">${tipoMovIcon(c.tipo_movimiento||'cambio')} ${tipoMovLabel(c.tipo_movimiento||'cambio')} — 📍 ${c.comercio||'Sin nombre'}</div>
+      ${cambiosIsla.length?cambiosIsla.map(c=>{
+        const tipo=c.tipo_movimiento||'cambio';
+        const borderCol=tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)';
+        const textCol=tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)';
+        return `<div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px;border-left:3px solid ${borderCol}">
+          <div style="font-size:11px;font-weight:700;color:${textCol};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — 📍 ${c.comercio||'Sin nombre'}</div>
           <div style="display:grid;grid-template-columns:${(c.maq_retirar&&c.maq_colocar)?'1fr 1fr':'1fr'};gap:6px">
             ${c.maq_retirar?`<div style="background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
               <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
@@ -1827,7 +1830,8 @@ function renderTecnicos(){
               <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
             </div>`:''}
           </div>
-        </div>`).join('')
+        </div>`;
+      }).join('')
       :'<div style="text-align:center;color:var(--green);font-size:13px;padding:20px 0">Sin cambios pendientes</div>'}
     </div>
   </div>`;
