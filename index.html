@@ -2313,6 +2313,8 @@ function renderPantallaTecAvatares(){
   const tecs=tecnicos.filter(t=>t.activo&&t.isla===islaActivaTec);
   body.style.gridTemplateColumns=tecs.length===1?'1fr':tecs.length===2?'repeat(2,1fr)':'repeat(3,1fr)';
   body.style.alignItems='center';
+  body.style.padding='20px';
+  body.style.gap='20px';
   body.innerHTML=tecs.map(t=>{
     const misAv=averias.filter(a=>a.tecnico_id===t.id||a.tecnico_nombre===t.nombre);
     const total=misAv.length;
@@ -2337,8 +2339,9 @@ function renderPantallaTecResumen(){
   const body=document.getElementById('pantalla-tec-body');
   if(!body) return;
   body.style.gridTemplateColumns='1fr';
-  body.style.alignItems='center';
+  body.style.alignItems='stretch';
   body.style.padding='40px 60px';
+  body.style.gap='0';
 
   const islaStats=ORAIN_ISLAS.map(isla=>{
     const tecsIsla=tecnicos.filter(t=>t.activo&&t.isla===isla);
@@ -2437,6 +2440,20 @@ function renderPantallaTec(){
   body.innerHTML=html;
 }
 
+
+// ── ORAIN VARIABLES ──
+let orainIslaActiva='general';
+const ORAIN_ISLAS=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+const ORAIN_ISLA_MAP={
+  'LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura',
+  'GRAN CANARIA':'Gran Canaria','TENERIFE':'Tenerife'
+};
+let orainData={
+  maquinas:[],
+  monederos:new Set(),
+  dispositivosOrain:new Set(),
+  cargado:{maquinas:false,audits:false,monederos:false,dispositivos:false}
+};
 
 function pedirClaveOrain(){
   // Hide selector first
