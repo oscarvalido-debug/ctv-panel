@@ -1668,7 +1668,7 @@ async function cargarAverias(){
 
 function avTecHtml(t, size){
   const c = COLORES_REP[t.colorIdx||0];
-  if(t.foto) return `<div class="tec-av" style="width:${size}px;height:${size}px"><img src="${t.foto}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:50%;object-position:top"></div>`;
+  if(t.foto) return `<div style="width:${size}px;height:${Math.round(size*1.4)}px;border-radius:10px;overflow:hidden;flex-shrink:0"><img src="${t.foto}" style="width:100%;height:100%;object-fit:cover;object-position:top center"></div>`;
   return `<div class="tec-av" style="width:${size}px;height:${size}px;background:${c.bg};color:${c.c};font-size:${Math.round(size*.32)}px">${t.ini}</div>`;
 }
 
@@ -1939,18 +1939,27 @@ function toggleIslaSection(id){
 
 async function subirFotoTecnico(id, input){
   const file=input.files[0]; if(!file) return;
-  // Convert to base64
   const reader=new FileReader();
   reader.onload=async e=>{
-    const foto=e.target.result;
-    const {error}=await sb.from('tecnicos').update({foto}).eq('id',id);
-    if(error){toast('Error guardando foto: '+error.message);return;}
-    // Update local data
-    const tec=tecnicos.find(t=>t.id===id);
-    if(tec){ tec.foto=foto; tec.ini=(tec.nombre||'??').substring(0,2).toUpperCase(); }
-    await cargarTecnicos();
-    document.getElementById('vista-tec').innerHTML=renderAdminTecHtml();
-    toast('Foto actualizada');
+    // Resize keeping aspect ratio, max 400px tall
+    const img=new Image();
+    img.onload=async ()=>{
+      const maxH=400;
+      const ratio=Math.min(1, maxH/img.height);
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*ratio);
+      canvas.height=Math.round(img.height*ratio);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const foto=canvas.toDataURL('image/jpeg',0.85);
+      const {error}=await sb.from('tecnicos').update({foto}).eq('id',id);
+      if(error){toast('Error guardando foto: '+error.message);return;}
+      const tec=tecnicos.find(t=>t.id===id);
+      if(tec){ tec.foto=foto; }
+      await cargarTecnicos();
+      document.getElementById('vista-tec').innerHTML=renderAdminTecHtml();
+      toast('Foto actualizada');
+    };
+    img.src=e.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -2309,10 +2318,11 @@ function renderPantallaTecAvatares(){
     const total=misAv.length;
     const tieneAlta=misAv.some(a=>a.urgencia==='alta');
     const c=COLORES_REP[t.colorIdx||0];
+    const borderColor=tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)';
     const avHtml=t.foto
-      ?`<img src="${t.foto}" style="width:160px;height:160px;object-fit:cover;border-radius:50%;object-position:top;border:4px solid ${tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)'}">`
-      :`<div style="width:160px;height:160px;border-radius:50%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:800;font-family:var(--ff);border:4px solid ${tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)'}">${t.ini}</div>`;
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:20px;padding:20px">
+      ?`<div style="height:320px;border-radius:16px;overflow:hidden;border:3px solid ${borderColor}"><img src="${t.foto}" style="height:100%;width:auto;display:block;margin:0 auto"></div>`
+      :`<div style="width:160px;height:160px;border-radius:50%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:52px;font-weight:800;font-family:var(--ff);border:4px solid ${borderColor}">${t.ini}</div>`;
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px">
       ${avHtml}
       <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--t1)">${t.nombre}</div>
       <div style="font-size:72px;font-weight:800;font-family:var(--ff);color:${total===0?'var(--green)':tieneAlta?'var(--red)':'var(--amber)'};line-height:1">${total}</div>
@@ -2360,74 +2370,69 @@ function renderPantallaTecResumen(){
 function renderPantallaTec(){
   const tecs=tecnicos.filter(t=>t.activo&&t.isla===islaActivaTec);
   const body=document.getElementById('pantalla-tec-body');
-  if(!body)return;
-  if(!tecs.length){body.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px;font-size:16px;grid-column:1/-1">Sin técnicos en esta isla</div>';return;}
-
-  // Adjust grid columns based on count
+  if(!body) return;
+  if(!tecs.length){
+    body.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px;font-size:16px;grid-column:1/-1">Sin técnicos en esta isla</div>';
+    return;
+  }
   body.style.gridTemplateColumns=tecs.length===1?'1fr':'repeat(2,1fr)';
+  body.style.alignItems='stretch';
+  body.style.overflow='hidden';
+  body.style.padding='16px';
 
-  let html='';
-  tecs.forEach(t=>{
+  body.innerHTML=tecs.map(t=>{
     const misAv=averias.filter(a=>a.tecnico_id===t.id||a.tecnico_nombre===t.nombre);
     const sorted=[...misAv].sort((a,b)=>{
       const ord={alta:0,media:1,baja:2};
       return (ord[a.urgencia]||1)-(ord[b.urgencia]||1)||new Date(a.fecha_aviso)-new Date(b.fecha_aviso);
     });
+    const total=misAv.length;
     const tieneAlta=misAv.some(a=>a.urgencia==='alta');
     const c=COLORES_REP[t.colorIdx||0];
-    const av=t.foto?`<img src="${t.foto}" style="width:72px;height:72px;object-fit:cover;border-radius:50%;object-position:top">`
-      :`<div style="width:72px;height:72px;border-radius:50%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;font-family:var(--ff)">${t.ini}</div>`;
+    const borderColor=tieneAlta?'var(--red)':total>0?'var(--amber)':'var(--green)';
+    const numColor=total===0?'var(--green)':tieneAlta?'var(--red)':'var(--amber)';
 
-    html+=`<div style="background:var(--bg2);border:0.5px solid ${tieneAlta?'rgba(224,85,85,.4)':'var(--border)'};border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
-      <div style="display:flex;align-items:center;gap:14px">
-        ${av}
-        <div style="flex:1">
-          <div style="font-size:20px;font-weight:800;font-family:var(--ff)">${t.nombre}</div>
-          <div style="font-size:14px;margin-top:4px;color:${tieneAlta?'var(--red)':misAv.length?'var(--amber)':'var(--green)'}">
-            ${misAv.length} avería${misAv.length!==1?'s':''} pendiente${misAv.length!==1?'s':''}
-            ${tieneAlta?' ⚠ Urgente':''}
-          </div>
+    const fotoHtml=t.foto
+      ?`<img src="${t.foto}" style="width:100%;height:100%;object-fit:cover;object-position:top center">`
+      :`<div style="width:100%;height:100%;background:${c.bg};color:${c.c};display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800;font-family:var(--ff)">${t.ini}</div>`;
+
+    const averiasHtml=sorted.map(a=>{
+      const dem=formatDemora(a.fecha_aviso);
+      return `<div style="background:var(--bg3);border-radius:10px;padding:12px;border-left:3px solid ${a.urgencia==='alta'?'var(--red)':a.urgencia==='baja'?'var(--green)':'var(--amber)'}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+          <span class="urg-badge ${urgClass(a.urgencia)}">${urgLabel(a.urgencia)}</span>
+          <span style="font-size:12px;color:var(--t2)">Máq. ${a.maquina_numero} — ${a.maquina_nombre}</span>
+        </div>
+        <div style="font-size:14px;font-weight:700;font-family:var(--ff);margin-bottom:4px">${a.titulo}</div>
+        <div style="font-size:11px;color:var(--t3)" class="${dem.clase}">⏱ ${dem.txt} de demora</div>
+      </div>`;
+    }).join('');
+
+    return `<div style="display:grid;grid-template-rows:1fr auto 1fr;gap:10px;height:100%;overflow:hidden">
+      <!-- FOTO -->
+      <div style="border-radius:14px;overflow:hidden;border:2px solid ${borderColor}">
+        ${fotoHtml}
+      </div>
+      <!-- CÍRCULO AVERÍAS -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px">
+        <div style="width:90px;height:90px;border-radius:50%;border:3px solid ${borderColor};display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg2);flex-shrink:0">
+          <div style="font-size:32px;font-weight:800;font-family:var(--ff);color:${numColor};line-height:1">${total}</div>
+          <div style="font-size:9px;color:${numColor};text-align:center">averías</div>
+        </div>
+        <div>
+          <div style="font-size:20px;font-weight:800;font-family:var(--ff);color:var(--t1)">${t.nombre}</div>
+          <div style="font-size:12px;color:${numColor};margin-top:3px">${total===0?'✓ Sin averías':'⚠ '+total+' pendiente'+(total!==1?'s':'')+(tieneAlta?' · URGENTE':'')}</div>
         </div>
       </div>
-      <div class="tec-pantalla-scroll" id="tec-scroll-${t.id}" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:calc(100vh - 280px)">
-        ${sorted.length?sorted.map(a=>{
-          const dem=formatDemora(a.fecha_aviso);
-          return `<div style="background:var(--bg3);border-radius:10px;padding:12px;border-left:3px solid ${a.urgencia==='alta'?'var(--red)':a.urgencia==='baja'?'var(--green)':'var(--amber)'}">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap">
-              <span class="urg-badge ${urgClass(a.urgencia)}">${urgLabel(a.urgencia)}</span>
-              <span style="font-size:12px;color:var(--t2)">Máq. ${a.maquina_numero} — ${a.maquina_nombre}</span>
-            </div>
-            <div style="font-size:14px;font-weight:700;font-family:var(--ff);margin-bottom:4px">${a.titulo}</div>
-            <div style="font-size:11px;color:var(--t3)" class="${dem.clase}">⏱ ${dem.txt} de demora</div>
-          </div>`;
-        }).join(''):'<div style="text-align:center;color:var(--green);padding:16px;font-size:14px">Sin averías pendientes</div>'}
+      <!-- LISTA AVERÍAS CON SCROLL -->
+      <div class="tec-pantalla-scroll" style="display:flex;flex-direction:column;gap:8px;overflow-y:auto;border:2px solid ${borderColor};border-radius:14px;padding:12px;background:var(--bg2)">
+        ${averiasHtml||'<div style="text-align:center;color:var(--green);padding:20px;font-size:14px">Sin averías pendientes</div>'}
       </div>
     </div>`;
-  });
-  body.innerHTML=html;
+  }).join('');
 }
 
 
-// ═══════════════════════════════════════════════
-// MÓDULO ORAIN
-// ═══════════════════════════════════════════════
-let orainData = {
-  maquinas: [],      // from Listado Máquinas
-  audits: [],        // from DashboardAudits
-  monederos: new Set(), // cod máquinas con monedero incompatible
-  dispositivosOrain: new Set(), // cod máquinas con ORAIN instalado
-  cargado: { maquinas:false, audits:false, monederos:false, dispositivos:false }
-};
-let orainIslaActiva = 'general';
-let orainAdminActivo = false;
-
-const ORAIN_ISLAS = ['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
-const ORAIN_ISLA_MAP = {
-  'LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura',
-  'GRAN CANARIA':'Gran Canaria','TENERIFE':'Tenerife'
-};
-
-// ── LOGIN ──
 function pedirClaveOrain(){
   // Hide selector first
   document.getElementById('selector-screen').style.display='none';
