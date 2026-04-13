@@ -2336,15 +2336,17 @@ function actualizarRelojOrain(){
 
 // ── CARGAR DATOS SUPABASE ──
 async function cargarDatosOrain(){
-  // Show loading in vista
   const vista=document.getElementById('orain-vista');
   if(vista) vista.innerHTML='<div style="text-align:center;color:var(--t2);padding:40px 0;font-size:13px">⏳ Cargando datos de Supabase...</div>';
   try{
-    const {data,error} = await sb.from('orain_maquinas').select('*');
-    if(error) throw error;
+    const {data,error} = await sb.from('orain_maquinas').select('*').limit(5000);
+    if(error){ 
+      console.error('ORAIN Supabase error:',error);
+      if(vista) vista.innerHTML=`<div style="text-align:center;color:var(--red);padding:40px 0;font-size:13px">Error conectando con Supabase:<br>${error.message}</div>`;
+      return;
+    }
+    console.log('ORAIN Supabase respuesta: '+(data?data.length:0)+' registros');
     if(data && data.length){
-      console.log('ORAIN: '+data.length+' registros cargados de Supabase');
-      // Map Supabase column names to JS object properties
       const islaMap={'LANZAROTE':'Lanzarote','FUERTEVENTURA':'Fuerteventura','GRAN CANARIA':'Gran Canaria','TENERIFE':'Tenerife'};
       orainData.maquinas = data.map(r=>({
         cod_maq:            r.cod_maq||'',
@@ -2366,8 +2368,17 @@ async function cargarDatosOrain(){
       orainData.cargado.audits=data.some(r=>r.ultimo_audit);
       renderOrainTabs();
       renderOrainVista();
+    } else {
+      // No data in Supabase
+      if(vista) vista.innerHTML=`<div style="text-align:center;color:var(--t3);padding:60px 0;font-size:14px">
+        Sin datos cargados.<br><br>
+        <span style="font-size:12px">Ve al panel <strong>Admin</strong> y sube los 4 archivos Excel en orden.</span>
+      </div>`;
     }
-  }catch(e){ console.error('ORAIN load error:',e); }
+  }catch(e){ 
+    console.error('ORAIN load error:',e);
+    if(vista) vista.innerHTML=`<div style="text-align:center;color:var(--red);padding:40px 0;font-size:13px">Error: ${e.message}</div>`;
+  }
 }
 
 // ── CALCULAR INDICADORES ──
