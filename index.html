@@ -1716,12 +1716,32 @@ function renderTecnicos(){
     lista.innerHTML='<div style="text-align:center;color:var(--t3);padding:40px 0;font-size:14px">No hay técnicos asignados a esta isla.</div>';
     return;
   }
-  let html='';
-  tecs.forEach(t=>{
+
+  function buildTecCard(t){
     const misAverias = averias.filter(a=>a.tecnico_id===t.id||a.tecnico_nombre===t.nombre);
     const totalPend  = misAverias.length;
     const tieneAlta  = misAverias.some(a=>a.urgencia==='alta');
-    html+=`<div class="tec-card">
+    const sorted=[...misAverias].sort((a,b)=>{
+      const ord={alta:0,media:1,baja:2};
+      return (ord[a.urgencia]||1)-(ord[b.urgencia]||1)||new Date(a.fecha_aviso)-new Date(b.fecha_aviso);
+    });
+    const avHtml=sorted.length?sorted.map(av=>{
+      const dem=formatDemora(av.fecha_aviso);
+      const fecha=new Date(av.fecha_aviso).toLocaleDateString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+      return `<div class="averia-item ${av.urgencia||'media'}">
+        <div class="averia-top">
+          <span class="urg-badge ${urgClass(av.urgencia)}">${urgLabel(av.urgencia)}</span>
+          <span class="averia-maq">Máq. ${av.maquina_numero} — ${av.maquina_nombre}</span>
+        </div>
+        <div class="averia-titulo">${av.titulo}</div>
+        <div class="averia-meta">
+          <span>📅 ${fecha}</span>
+          <span class="${dem.clase}">⏱ ${dem.txt} de demora</span>
+        </div>
+      </div>`;
+    }).join(''):'<div style="text-align:center;color:var(--green);font-size:13px;padding:12px 0">Sin averías pendientes</div>';
+
+    return `<div class="tec-card" style="height:100%;display:flex;flex-direction:column">
       <div class="tec-header">
         ${avTecHtml(t,52)}
         <div class="tec-info">
@@ -1731,34 +1751,19 @@ function renderTecnicos(){
             ${tieneAlta?'<span style="color:var(--red);margin-left:6px">⚠ urgente</span>':''}
           </div>
         </div>
-      </div>`;
-    if(misAverias.length){
-      // Sort: alta first, then by fecha
-      const sorted=[...misAverias].sort((a,b)=>{
-        const ord={alta:0,media:1,baja:2};
-        return (ord[a.urgencia]||1)-(ord[b.urgencia]||1) || new Date(a.fecha_aviso)-new Date(b.fecha_aviso);
-      });
-      sorted.forEach(av=>{
-        const dem=formatDemora(av.fecha_aviso);
-        const fecha=new Date(av.fecha_aviso).toLocaleDateString('es-ES',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-        html+=`<div class="averia-item ${av.urgencia||'media'}">
-          <div class="averia-top">
-            <span class="urg-badge ${urgClass(av.urgencia)}">${urgLabel(av.urgencia)}</span>
-            <span class="averia-maq">Máq. ${av.maquina_numero} — ${av.maquina_nombre}</span>
-          </div>
-          <div class="averia-titulo">${av.titulo}</div>
-          <div class="averia-meta">
-            <span>📅 ${fecha}</span>
-            <span class="${dem.clase}">⏱ ${dem.txt} de demora</span>
-          </div>
-        </div>`;
-      });
-    } else {
-      html+=`<div style="text-align:center;color:var(--green);font-size:13px;padding:12px 0">Sin averías pendientes</div>`;
-    }
-    html+='</div>';
-  });
-  lista.innerHTML=html;
+      </div>
+      <div style="flex:1">${avHtml}</div>
+    </div>`;
+  }
+
+  // Show side by side if 2 techs, single column if 1
+  if(tecs.length>=2){
+    lista.innerHTML=`<div style="display:grid;grid-template-columns:repeat(${Math.min(tecs.length,2)},1fr);gap:12px;align-items:start">
+      ${tecs.map(t=>buildTecCard(t)).join('')}
+    </div>`;
+  } else {
+    lista.innerHTML=tecs.map(t=>buildTecCard(t)).join('');
+  }
 }
 
 function actualizarFechaTec(){
@@ -2625,6 +2630,7 @@ function cerrarAdminOrain(){
 }
 
 function renderOrainUploadCards(){
+  try{
   const uploads=[
     {id:'maquinas',label:'1 — Listado de Máquinas',sub:'Columnas: Cod. Maq., Delegación, Ruta, Ubic.'},
     {id:'monederos',label:'2 — Monederos',sub:'Lista de máquinas con monedero incompatible. Columna: Máquina'},
@@ -2656,6 +2662,7 @@ function renderOrainUploadCards(){
 
   const container=document.getElementById('orain-upload-cards');
   if(container) container.innerHTML=html;
+  }catch(err){ console.error('renderOrainUploadCards error:',err); }
 }
 
 // ── PROCESAR EXCEL ORAIN ──
