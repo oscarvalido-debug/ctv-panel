@@ -2570,53 +2570,83 @@ function renderPantallaTecMovimientos(){
   if(!body) return;
   body.style.gridTemplateColumns='1fr';
   body.style.alignItems='stretch';
-  body.style.padding='24px 40px';
+  body.style.padding='16px 24px';
   body.style.gap='0';
 
-  const ISLAS_TEC=['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
-  const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
   const total=movimientosMaquina.length;
-  const totalColor=total===0?'var(--green)':total>5?'var(--red)':'#ff8c00';
+  const instalaciones=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='instalacion');
+  const retiradas=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='retirada');
+  const cambios=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='cambio');
 
-  // Group by island
-  const porIsla=ISLAS_TEC.map(isla=>({
-    isla, icon:iconMap[isla],
-    movs:movimientosMaquina.filter(m=>m.isla===isla)
-  })).filter(g=>g.movs.length>0);
+  function buildCard(c){
+    const tipo=c.tipo_movimiento||'cambio';
+    return `<div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">
+      <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:6px">📍 ${c.comercio||'Sin nombre'}</div>
+      <div style="display:flex;gap:6px">
+        ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
+          <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
+          <div style="font-size:13px;font-weight:700">${c.maq_retirar}</div>
+          <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
+        </div>`:''}
+        ${c.maq_colocar?`<div style="flex:1;background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
+          <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Instalar</div>
+          <div style="font-size:13px;font-weight:700">${c.maq_colocar}</div>
+          <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
+        </div>`:''}
+      </div>
+    </div>`;
+  }
 
   body.innerHTML=`
-    <div style="display:flex;flex-direction:column;height:100%;gap:16px">
-      <div style="text-align:center;flex-shrink:0">
-        <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:6px">Movimientos de máquinas pendientes</div>
-        <div style="font-size:64px;font-weight:800;font-family:var(--ff);color:${totalColor};line-height:1">${total}</div>
+    <div style="display:flex;flex-direction:column;height:100%;gap:14px">
+      <!-- Título -->
+      <div style="text-align:center;flex-shrink:0;padding:4px 0">
+        <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px">Movimientos de máquinas pendientes</div>
+        <div style="font-size:44px;font-weight:800;font-family:var(--ff);color:${total===0?'var(--green)':total>5?'var(--red)':'#ff8c00'};line-height:1">${total} movimiento${total!==1?'s':''}</div>
       </div>
-      ${total===0?'<div style="text-align:center;color:var(--green);font-size:18px;margin-top:20px">✓ Sin movimientos pendientes</div>':`
-      <div style="flex:1;display:grid;grid-template-columns:repeat(${Math.min(porIsla.length,2)},1fr);gap:14px;overflow:hidden">
-        ${porIsla.map(g=>`
-          <div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.25);border-radius:14px;padding:16px;display:flex;flex-direction:column;overflow:hidden">
-            <div style="font-size:16px;font-weight:800;font-family:var(--ff);color:#ff8c00;margin-bottom:12px;flex-shrink:0">${g.icon} ${g.isla} — ${g.movs.length} movimiento${g.movs.length!==1?'s':''}</div>
-            <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
-              ${g.movs.map(c=>{
-                const tipo=c.tipo_movimiento||'cambio';
-                return `<div style="background:var(--bg3);border-radius:10px;padding:10px;border-left:3px solid ${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)'}">
-                  <div style="font-size:11px;font-weight:700;color:${tipo==='instalacion'?'var(--green)':tipo==='retirada'?'var(--red)':'var(--blue)'};margin-bottom:6px">${tipoMovIcon(tipo)} ${tipoMovLabel(tipo)} — ${c.comercio||'Sin nombre'}</div>
-                  <div style="display:flex;gap:8px">
-                    ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
-                      <div style="font-size:9px;color:var(--red)">RETIRAR</div>
-                      <div style="font-size:13px;font-weight:700">${c.maq_retirar}</div>
-                      <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
-                    </div>`:''}
-                    ${c.maq_colocar?`<div style="flex:1;background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
-                      <div style="font-size:9px;color:var(--green)">INSTALAR</div>
-                      <div style="font-size:13px;font-weight:700">${c.maq_colocar}</div>
-                      <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
-                    </div>`:''}
-                  </div>
-                </div>`;
-              }).join('')}
+      ${total===0
+        ?'<div style="text-align:center;color:var(--green);font-size:20px;margin-top:30px">✓ Sin movimientos pendientes</div>'
+        :`<div style="flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;min-height:0">
+          <!-- INSTALACIONES -->
+          <div style="background:var(--bg2);border:1.5px solid rgba(61,207,142,.3);border-radius:14px;padding:14px;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-shrink:0">
+              <div style="width:32px;height:32px;border-radius:50%;background:rgba(61,207,142,.15);display:flex;align-items:center;justify-content:center;font-size:16px">📦</div>
+              <div>
+                <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--green)">Instalaciones</div>
+                <div style="font-size:11px;color:var(--t2)">${instalaciones.length} pendiente${instalaciones.length!==1?'s':''}</div>
+              </div>
             </div>
-          </div>`).join('')}
-      </div>`}
+            <div style="flex:1;overflow-y:auto">
+              ${instalaciones.length?instalaciones.map(buildCard).join(''):'<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px">Sin instalaciones</div>'}
+            </div>
+          </div>
+          <!-- RETIRADAS -->
+          <div style="background:var(--bg2);border:1.5px solid rgba(224,85,85,.3);border-radius:14px;padding:14px;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-shrink:0">
+              <div style="width:32px;height:32px;border-radius:50%;background:rgba(224,85,85,.15);display:flex;align-items:center;justify-content:center;font-size:16px">📤</div>
+              <div>
+                <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--red)">Retiradas</div>
+                <div style="font-size:11px;color:var(--t2)">${retiradas.length} pendiente${retiradas.length!==1?'s':''}</div>
+              </div>
+            </div>
+            <div style="flex:1;overflow-y:auto">
+              ${retiradas.length?retiradas.map(buildCard).join(''):'<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px">Sin retiradas</div>'}
+            </div>
+          </div>
+          <!-- CAMBIOS -->
+          <div style="background:var(--bg2);border:1.5px solid rgba(91,156,246,.3);border-radius:14px;padding:14px;display:flex;flex-direction:column;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-shrink:0">
+              <div style="width:32px;height:32px;border-radius:50%;background:rgba(91,156,246,.15);display:flex;align-items:center;justify-content:center;font-size:16px">🔄</div>
+              <div>
+                <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--blue)">Cambios</div>
+                <div style="font-size:11px;color:var(--t2)">${cambios.length} pendiente${cambios.length!==1?'s':''}</div>
+              </div>
+            </div>
+            <div style="flex:1;overflow-y:auto">
+              ${cambios.length?cambios.map(buildCard).join(''):'<div style="text-align:center;color:var(--t3);padding:20px;font-size:13px">Sin cambios</div>'}
+            </div>
+          </div>
+        </div>`}
     </div>`;
 }
 
