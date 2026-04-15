@@ -3537,12 +3537,23 @@ function iniciarCicloOrain(){
       const isla=orainIslaActiva;
       const ind=orainIndicadores(isla);
       const rutas=Object.entries(ind.porRuta).filter(([r])=>r!=='Sin ruta asignada').sort((a,b)=>a[0].localeCompare(b[0]));
-      const totalFases=1+rutas.length+2; // resumen + rutas + 2 rankings
+      // Cycle: resumen isla(20s) + each ruta detail(10s) + ranking rutas ORAIN(10s) + ranking rutas Tele(10s)
+      const totalFases=1+rutas.length+2;
       const fase=_orainPantallaFase%totalFases;
-      if(fase===0){ duracion=20000; renderPantallaOrainResumen(body,ind,rutas,isla); }
-      else if(fase<=rutas.length){ duracion=10000; const [rN,rV]=rutas[fase-1]; renderPantallaOrainRuta(body,rN,rV,ind,isla); }
-      else if(fase===rutas.length+1){ duracion=10000; renderPantallaOrainRankingRutas(body,ind,isla,'orain'); }
-      else { duracion=10000; renderPantallaOrainRankingRutas(body,ind,isla,'tele'); }
+      if(fase===0){
+        duracion=20000;
+        renderPantallaOrainIslaResumen(body,ind,rutas,isla);
+      } else if(fase<=rutas.length){
+        duracion=10000;
+        const [rN,rV]=rutas[fase-1];
+        renderPantallaOrainRuta(body,rN,rV,ind,isla);
+      } else if(fase===rutas.length+1){
+        duracion=10000;
+        renderPantallaOrainRankingRutas(body,ind,isla,'orain');
+      } else {
+        duracion=10000;
+        renderPantallaOrainRankingRutas(body,ind,isla,'tele');
+      }
     }
   }catch(e){ console.error('Ciclo ORAIN error:',e); duracion=5000; }
 
@@ -3553,6 +3564,106 @@ function iniciarCicloOrain(){
   }
   _orainPantallaFase++;
   _orainPantallaCiclo=setTimeout(iniciarCicloOrain,duracion);
+}
+
+// ── PANTALLA ISLA: RESUMEN ──
+function renderPantallaOrainIslaResumen(body, ind, rutas, isla){
+  const icon={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'}[isla]||'🏝️';
+  const posibles=Math.max(1,ind.total-ind.imposibles);
+  const pctO=Math.round(ind.conOrain/posibles*100);
+  const pctT=Math.round(ind.conTelemetria/Math.max(1,ind.total)*100);
+  const bcO=pctO>=90?'var(--green)':pctO>=70?'var(--amber)':'var(--red)';
+  const bcT=pctT>=90?'var(--green)':pctT>=70?'var(--amber)':'var(--red)';
+
+  body.style.overflow='hidden';
+  body.style.padding='16px 24px';
+  body.innerHTML=`
+  <div style="display:flex;flex-direction:column;height:100%;gap:14px">
+    <!-- Título -->
+    <div style="text-align:center;flex-shrink:0">
+      <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px">Estado ORAIN</div>
+      <div style="font-size:40px;font-weight:800;font-family:var(--ff);color:#ff8c00">${icon} ${isla}</div>
+    </div>
+    <!-- Indicadores globales -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;flex-shrink:0">
+      <div style="background:var(--bg2);border:0.5px solid rgba(91,156,246,.3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--blue)">${ind.total}</div>
+        <div style="font-size:9px;color:var(--t2);text-transform:uppercase;margin-top:2px">Total</div>
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(61,207,142,.3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--green)">${ind.conOrain}</div>
+        <div style="font-size:9px;color:var(--t2);text-transform:uppercase;margin-top:2px">ORAIN</div>
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(255,140,0,.3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:#ff8c00">${ind.pendienteOrain}</div>
+        <div style="font-size:9px;color:var(--t2);text-transform:uppercase;margin-top:2px">P.ORAIN</div>
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(61,207,142,.2);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8)">${ind.conTelemetria}</div>
+        <div style="font-size:9px;color:var(--t2);text-transform:uppercase;margin-top:2px">Telemetría</div>
+      </div>
+      <div style="background:var(--bg2);border:0.5px solid rgba(240,160,48,.3);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--amber)">${ind.pendienteTelemetria}</div>
+        <div style="font-size:9px;color:var(--t2);text-transform:uppercase;margin-top:2px">P.Tele.</div>
+      </div>
+      <div style="background:rgba(224,85,85,.08);border:0.5px solid rgba(224,85,85,.4);border-radius:10px;padding:12px;text-align:center">
+        <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--red)">${ind.sinCom4d.length}</div>
+        <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-top:2px">Sin com.</div>
+      </div>
+    </div>
+    <!-- Barras de progreso -->
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--green);min-width:100px">ORAIN instalado</div>
+        <div style="flex:1;height:18px;background:var(--bg3);border-radius:9px;overflow:hidden;position:relative">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${pctO}%;background:${bcO};border-radius:9px"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${ind.conOrain} / ${posibles}</div>
+        </div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:${bcO};min-width:46px;text-align:right">${pctO}%</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:11px;font-weight:700;color:rgba(61,207,142,.8);min-width:100px">Telemetría</div>
+        <div style="flex:1;height:18px;background:var(--bg3);border-radius:9px;overflow:hidden;position:relative">
+          <div style="position:absolute;left:0;top:0;height:100%;width:${pctT}%;background:${bcT};border-radius:9px"></div>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff">${ind.conTelemetria} / ${ind.total}</div>
+        </div>
+        <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:${bcT};min-width:46px;text-align:right">${pctT}%</div>
+      </div>
+    </div>
+    <!-- Tabla por ruta -->
+    <div style="flex:1;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;flex-shrink:0">Estado por ruta</div>
+      <div style="display:grid;grid-template-columns:2fr 50px 55px 50px 55px 50px;gap:4px;padding:0 6px;margin-bottom:6px;flex-shrink:0">
+        <div style="font-size:9px;color:var(--t3)">Ruta</div>
+        <div style="font-size:9px;color:var(--blue);text-align:center">Total</div>
+        <div style="font-size:9px;color:var(--green);text-align:center">ORAIN</div>
+        <div style="font-size:9px;color:rgba(61,207,142,.8);text-align:center">Tele.</div>
+        <div style="font-size:9px;color:var(--amber);text-align:center">P.Tele.</div>
+        <div style="font-size:9px;color:var(--red);text-align:center">Sin com.</div>
+      </div>
+      <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+        ${rutas.map(([ruta,v])=>{
+          const rShort=ruta.replace('RUTA ZONA ','').replace('RUTA ','');
+          const pO=Math.min(100,Math.round(v.orain/Math.max(1,v.total-v.imposible)*100));
+          const pT=Math.round(v.telemetria/Math.max(1,v.total)*100);
+          const bcR=pO>=90?'var(--green)':pO>=70?'var(--amber)':'var(--red)';
+          return `<div style="display:grid;grid-template-columns:2fr 50px 55px 50px 55px 50px;gap:4px;padding:7px 6px;background:var(--bg3);border-radius:8px;align-items:center">
+            <div>
+              <div style="font-size:13px;font-weight:700;font-family:var(--ff)">${rShort}</div>
+              <div style="height:4px;background:var(--bg2);border-radius:2px;margin-top:4px;overflow:hidden">
+                <div style="width:${pO}%;height:100%;background:${bcR};border-radius:2px"></div>
+              </div>
+            </div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--blue);text-align:center">${v.total}</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--green);text-align:center">${v.orain}</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8);text-align:center">${v.telemetria}</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${v.pendienteTelemetria}</div>
+            <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:${v.sinCom>0?'var(--red)':'var(--t3)'};text-align:center">${v.sinCom}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
 }
 
 // ── PANTALLA GENERAL: ORAIN ──
@@ -3623,11 +3734,11 @@ function renderPantallaOrainGeneralOrain(body){
             <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="width:${p}%;height:100%;background:${bc};border-radius:3px"></div></div>
           </div>
           <!-- Lista pendientes con scroll -->
-          <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          <div class="orain-p-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
             ${d.lista.length?d.lista.map(m=>`
               <div style="background:var(--bg3);border-radius:6px;padding:5px 8px;font-size:11px;display:flex;justify-content:space-between;align-items:center">
-                <span style="font-weight:600;color:var(--t1)">${m.cod_maq}</span>
-                <span style="color:var(--t2);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${m.ubicacion||m.nombre||''}</span>
+                <span style="color:var(--t2);font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.ubicacion||m.nombre||m.cod_maq}</span>
+                <span style="font-weight:700;color:var(--t1);flex-shrink:0;margin-left:6px">${m.cod_maq}</span>
               </div>`).join('')
             :'<div style="text-align:center;color:var(--green);font-size:11px;padding:10px">✓ Sin pendientes</div>'}
           </div>
@@ -3635,12 +3746,24 @@ function renderPantallaOrainGeneralOrain(body){
       }).join('')}
     </div>
   </div>`;
+  // Autoscroll all lists
+  setTimeout(()=>{
+    body.querySelectorAll('.orain-p-scroll').forEach(el=>{
+      if(el.scrollHeight<=el.clientHeight) return;
+      let dir=1;
+      setInterval(()=>{
+        el.scrollTop+=dir*0.8;
+        if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(()=>{dir=1;},2000);}
+        if(el.scrollTop<=0&&dir===-1) dir=1;
+      },40);
+    });
+  },600);
 }
 
 // ── PANTALLA GENERAL: TELEMETRÍA ──
 function renderPantallaOrainGeneralTele(body){
   const ind=orainIndicadores(null);
-  const pct=Math.round(ind.conTelemetria/Math.max(1,ind.conOrain)*100);
+  const pct=Math.round(ind.conTelemetria/Math.max(1,ind.total)*100);
   const bcT=pct>=90?'var(--green)':pct>=70?'var(--amber)':'var(--red)';
 
   const islasData=ORAIN_ISLAS.map(isla=>{
@@ -3658,8 +3781,8 @@ function renderPantallaOrainGeneralTele(body){
       <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px">Estado Telemetría — Todas las islas</div>
       <div style="display:flex;justify-content:center;gap:40px;align-items:center">
         <div style="text-align:center">
-          <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:var(--green);line-height:1">${ind.conOrain}</div>
-          <div style="font-size:11px;color:var(--t2);margin-top:3px;text-transform:uppercase">Con ORAIN</div>
+          <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:var(--blue);line-height:1">${ind.total}</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:3px;text-transform:uppercase">Máquinas totales</div>
         </div>
         <div style="text-align:center">
           <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8);line-height:1">${ind.conTelemetria}</div>
@@ -3667,7 +3790,7 @@ function renderPantallaOrainGeneralTele(body){
         </div>
         <div style="text-align:center">
           <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:${bcT};line-height:1">${pct}%</div>
-          <div style="font-size:11px;color:var(--t2);margin-top:3px;text-transform:uppercase">Cobertura</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:3px;text-transform:uppercase">% Cobertura</div>
         </div>
         <div style="text-align:center">
           <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:var(--amber);line-height:1">${ind.pendienteTelemetria}</div>
@@ -3677,7 +3800,7 @@ function renderPantallaOrainGeneralTele(body){
     </div>
     <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;min-height:0">
       ${islasData.map(d=>{
-        const p=d.conOrain>0?Math.round(d.conTele/d.conOrain*100):0;
+        const p=Math.round(d.conTele/Math.max(1,d.total)*100);
         const bc=p>=90?'var(--green)':p>=70?'var(--amber)':'var(--red)';
         return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;overflow:hidden">
           <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:#ff8c00;margin-bottom:10px;flex-shrink:0">${d.icon} ${d.isla}</div>
@@ -3699,11 +3822,11 @@ function renderPantallaOrainGeneralTele(body){
             <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-bottom:3px"><span>Progreso Telemetría</span><span style="color:${bc}">${p}%</span></div>
             <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden"><div style="width:${p}%;height:100%;background:${bc};border-radius:3px"></div></div>
           </div>
-          <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          <div class="orain-p-scroll" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
             ${d.lista.length?d.lista.map(m=>`
               <div style="background:var(--bg3);border-radius:6px;padding:5px 8px;font-size:11px;display:flex;justify-content:space-between;align-items:center">
-                <span style="font-weight:600;color:var(--t1)">${m.cod_maq}</span>
-                <span style="color:var(--t2);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${m.ubicacion||m.nombre||''}</span>
+                <span style="color:var(--t2);font-size:10px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.ubicacion||m.nombre||m.cod_maq}</span>
+                <span style="font-weight:700;color:var(--t1);flex-shrink:0;margin-left:6px">${m.cod_maq}</span>
               </div>`).join('')
             :'<div style="text-align:center;color:var(--green);font-size:11px;padding:10px">✓ Sin pendientes</div>'}
           </div>
@@ -3711,6 +3834,17 @@ function renderPantallaOrainGeneralTele(body){
       }).join('')}
     </div>
   </div>`;
+  setTimeout(()=>{
+    body.querySelectorAll('.orain-p-scroll').forEach(el=>{
+      if(el.scrollHeight<=el.clientHeight) return;
+      let dir=1;
+      setInterval(()=>{
+        el.scrollTop+=dir*0.8;
+        if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(()=>{dir=1;},2000);}
+        if(el.scrollTop<=0&&dir===-1) dir=1;
+      },40);
+    });
+  },600);
 }
 
 // ── RANKING ISLAS ──
