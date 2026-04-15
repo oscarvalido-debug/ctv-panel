@@ -378,13 +378,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
     <div style="font-size:13px;color:var(--t2);margin-top:6px">¿A qué módulo quieres acceder?</div>
   </div>
   <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
-    <button onclick="entrarModulo('rutas')"
-      style="width:180px;height:160px;background:var(--bg2);border:0.5px solid rgba(91,156,246,.35);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all .15s;font-family:var(--fb)">
-      <span style="font-size:44px">🗺</span>
-      <span style="font-size:15px;font-weight:700;color:var(--blue)">Rutas</span>
-      <span style="font-size:11px;color:var(--t2)">Plan semanal</span>
-    </button>
-    <button onclick="entrarModulo('reponedores')"
+    <button onclick="entrarModulo('reponedores')" style="display:none"
       style="width:180px;height:160px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:all .15s;font-family:var(--fb)"
       onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">
       <span style="font-size:40px">📦</span>
@@ -4457,30 +4451,82 @@ function iniciarCicloRutas(){
   const hoy=DIA_HOY;
   const isla=islaActivaRutas==='general'?null:islaActivaRutas;
   const rutas=rutasSemanales.filter(r=>r[hoy]&&r[hoy].length>0&&(!isla||r.isla===isla));
-  const totalFases=Math.max(1,rutas.length);
-  const fase=_rutasPantallaFase%totalFases;
-  const duracion=30000;
+  const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
 
   try{
     const body=document.getElementById('pantalla-rutas-body');
-    const ruta=rutas[fase];
-    if(ruta){
-      const title=document.getElementById('pantalla-rutas-title');
-      const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
-      if(title) title.textContent=`🗺 ${islaIcon(ruta.isla)} ${ruta.isla} — ${ruta.nombre_ruta} — ${diaLabel}`;
-      renderPantallaRutaDetalle(body,ruta,hoy,isla||ruta.isla);
-    } else {
+    const title=document.getElementById('pantalla-rutas-title');
+    if(!rutas.length){
       if(body) body.innerHTML='<div style="text-align:center;color:var(--t3);padding:60px;font-size:16px">Sin rutas programadas para hoy</div>';
+      return;
+    }
+    if(isla){
+      // Modo isla: todas las rutas juntas sin ciclo
+      if(title) title.textContent='🗺 '+islaIcon(isla)+' '+isla+' — '+diaLabel;
+      renderPantallaTodasRutas(body,rutas,hoy,isla);
+      // No timer - stays static showing all routes
+    } else {
+      // Modo general: cicla por isla cada 30s
+      const islas=ISLAS_RUTAS.filter(i=>rutas.some(r=>r.isla===i));
+      const fase=_rutasPantallaFase%Math.max(1,islas.length);
+      const islaActual=islas[fase]||islas[0];
+      const rutasIsla=rutas.filter(r=>r.isla===islaActual);
+      if(title) title.textContent='🗺 '+islaIcon(islaActual)+' '+islaActual+' — '+diaLabel;
+      renderPantallaTodasRutas(body,rutasIsla,hoy,islaActual);
+      const duracion=30000;
+      const bar=document.getElementById('rutas-p-bar');
+      if(bar){ bar.style.transition='none'; bar.style.width='100%'; setTimeout(()=>{ bar.style.transition='width '+duracion+'ms linear'; bar.style.width='0%'; },50); }
+      _rutasPantallaFase++;
+      _rutasPantallaTimer=setTimeout(iniciarCicloRutas,duracion);
     }
   }catch(e){ console.error('Ciclo rutas error:',e); }
+}
 
-  const bar=document.getElementById('rutas-p-bar');
-  if(bar){
-    bar.style.transition='none'; bar.style.width='100%';
-    setTimeout(()=>{ bar.style.transition=`width ${duracion}ms linear`; bar.style.width='0%'; },50);
-  }
-  _rutasPantallaFase++;
-  _rutasPantallaTimer=setTimeout(iniciarCicloRutas,duracion);
+function renderPantallaTodasRutas(body,rutas,hoy,isla){
+  const errIsla=new Set(erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina));
+  const today=new Date().toISOString().slice(0,10);
+  const cols=Math.min(rutas.length,4);
+  body.style.overflow='hidden';
+  body.style.display='grid';
+  body.style.gridTemplateColumns='repeat('+cols+',1fr)';
+  body.style.gap='12px';
+  body.style.alignItems='stretch';
+  body.innerHTML=rutas.map(function(r){
+    const maquinas=r[hoy]||[];
+    const datos=datosDiaRutas.find(function(d){return d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today;})||{};
+    const maqErr=maquinas.filter(function(m){return errIsla.has(m.cod);}).length;
+    const maqPrev=maquinas.length;
+    const maqReal=datos.maq_realizadas||0;
+    const listHtml=maquinas.map(function(m,i){
+      const err=errIsla.has(m.cod);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;background:'+(err?'rgba(224,85,85,.12)':'var(--bg3)')+';border:0.5px solid '+(err?'rgba(224,85,85,.3)':'transparent')+'">'
+        +'<span style="font-size:10px;color:var(--t3);min-width:16px">'+(i+1)+'</span>'
+        +'<span style="font-size:12px;font-weight:700;color:'+(err?'var(--red)':'var(--t1)')+';flex-shrink:0">'+m.cod+'</span>'
+        +'<span style="font-size:11px;color:'+(err?'var(--red)':'var(--t2)')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.nombre+'</span>'
+        +(err?'<span style="font-size:12px;animation:blink 1s infinite">⚠</span>':'')
+        +'</div>';
+    }).join('');
+    return '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden">'
+      +'<div style="font-size:16px;font-weight:800;font-family:var(--ff);color:var(--blue);flex-shrink:0">'+r.nombre_ruta+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex-shrink:0">'
+        +'<div style="background:var(--bg3);border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:var(--blue)">'+maqPrev+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Previstas</div></div>'
+        +'<div style="background:var(--bg3);border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:'+(maqReal>=maqPrev?'var(--green)':'var(--amber)')+'">'+maqReal+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Realizadas</div></div>'
+        +'<div style="background:'+(maqErr>0?'rgba(224,85,85,.15)':'var(--bg3)')+';border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:'+(maqErr>0?'var(--red)':'var(--green)')+'">'+maqErr+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Err.precio</div></div>'
+      +'</div>'
+      +'<div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll">'+listHtml+'</div>'
+      +'</div>';
+  }).join('');
+  setTimeout(function(){
+    document.querySelectorAll('.rutas-scroll').forEach(function(el){
+      if(el.scrollHeight<=el.clientHeight) return;
+      var dir=1;
+      setInterval(function(){
+        el.scrollTop+=dir*0.8;
+        if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(function(){dir=1;},3000);}
+        if(el.scrollTop<=0&&dir===-1) dir=1;
+      },40);
+    });
+  },600);
 }
 
 function renderPantallaRutaDetalle(body, r, hoy, isla){
