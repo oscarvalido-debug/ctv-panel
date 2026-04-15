@@ -1662,10 +1662,10 @@ function entrarModulo(modulo){
     document.getElementById('selector-screen').style.display='none';
     document.getElementById('modulo-rutas').style.display='flex';
     moduloActivo='rutas';
-    renderIslaTabsRutas();
+    // Reload fresh data every time we enter
+    Promise.all([cargarRutasSemanales(),cargarErroresPrecios(),cargarDatosDiaRutas()]).then(()=>{ renderIslaTabsRutas(); });
     return;
   }
-  if(modulo==='orain'){ pedirClaveOrain(); return; }
   moduloActivo = modulo;
   document.getElementById('selector-screen').style.display='none';
   ocultarTodosModulos();
