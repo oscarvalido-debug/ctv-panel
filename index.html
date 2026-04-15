@@ -279,6 +279,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 .orain-card{background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
 .orain-card.alerta{border-color:rgba(224,85,85,.4);background:rgba(224,85,85,.04)}
 .orain-stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
 .orain-stat{background:var(--bg3);border-radius:10px;padding:12px;text-align:center}
 .orain-stat.naranja{background:rgba(255,140,0,.1);border:0.5px solid rgba(255,140,0,.25)}
 .orain-stat.rojo{background:rgba(224,85,85,.1);border:0.5px solid rgba(224,85,85,.25)}
@@ -2578,20 +2579,28 @@ function renderPantallaTecMovimientos(){
   const retiradas=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='retirada');
   const cambios=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='cambio');
 
-  function buildCard(c){
-    const tipo=c.tipo_movimiento||'cambio';
-    return `<div style="background:var(--bg3);border-radius:10px;padding:10px;margin-bottom:8px">
-      <div style="font-size:13px;font-weight:700;color:var(--t1);margin-bottom:6px">📍 ${c.comercio||'Sin nombre'}</div>
+  function buildCard(c, forzarTipo){
+    const tipo=forzarTipo||(c.tipo_movimiento||'cambio');
+    const esIns=tipo==='instalacion', esRet=tipo==='retirada';
+    const bg=esIns?'rgba(61,207,142,.12)':esRet?'rgba(224,85,85,.12)':'rgba(91,156,246,.1)';
+    const border=esIns?'rgba(61,207,142,.4)':esRet?'rgba(224,85,85,.5)':'rgba(91,156,246,.35)';
+    const textColor=esIns?'var(--green)':esRet?'var(--red)':'var(--blue)';
+    const icon=esIns?'✅':esRet?'⚠':'🔄';
+    return `<div style="background:${bg};border:1px solid ${border};border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="${esRet?'animation:blink 1s infinite;':''}">${icon}</span>
+        <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:${textColor}">📍 ${c.comercio||'Sin nombre'}</div>
+      </div>
       <div style="display:flex;gap:6px">
-        ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.08);border-radius:6px;padding:6px">
-          <div style="font-size:9px;color:var(--red);text-transform:uppercase;margin-bottom:2px">Retirar</div>
-          <div style="font-size:13px;font-weight:700">${c.maq_retirar}</div>
-          <div style="font-size:10px;color:var(--t2)">${c.modelo_retirar||''}</div>
+        ${c.maq_retirar?`<div style="flex:1;background:rgba(224,85,85,.12);border:0.5px solid rgba(224,85,85,.3);border-radius:6px;padding:7px">
+          <div style="font-size:9px;color:var(--red);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Retirar</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--t1)">${c.maq_retirar}</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:1px">${c.modelo_retirar||''}</div>
         </div>`:''}
-        ${c.maq_colocar?`<div style="flex:1;background:rgba(61,207,142,.08);border-radius:6px;padding:6px">
-          <div style="font-size:9px;color:var(--green);text-transform:uppercase;margin-bottom:2px">Instalar</div>
-          <div style="font-size:13px;font-weight:700">${c.maq_colocar}</div>
-          <div style="font-size:10px;color:var(--t2)">${c.modelo_colocar||''}</div>
+        ${c.maq_colocar?`<div style="flex:1;background:rgba(61,207,142,.12);border:0.5px solid rgba(61,207,142,.3);border-radius:6px;padding:7px">
+          <div style="font-size:9px;color:var(--green);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">Instalar</div>
+          <div style="font-size:14px;font-weight:800;font-family:var(--ff);color:var(--t1)">${c.maq_colocar}</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:1px">${c.modelo_colocar||''}</div>
         </div>`:''}
       </div>
     </div>`;
@@ -2907,15 +2916,15 @@ function orainIndicadores(isla){
 
   const total      = maquinas.length;
   const conOrain   = maquinas.filter(m=>m.estado_orain==='INSTALADO').length;
-  // Telemetría activa = aparece en Audit Monitor (tiene ultimo_audit)
-  const conTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && m.ultimo_audit).length;
-  // Pendiente ORAIN = no tiene ORAIN instalado (excluyendo imposibles)
-  const pendienteOrain = maquinas.filter(m=>m.estado_orain==='PENDIENTE').length;
-  // Pendiente Telemetría = tiene ORAIN pero sin telemetría activa
-  const pendienteTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && (!m.es_telemetria || !m.ultimo_audit)).length;
   const imposibles = maquinas.filter(m=>m.tiene_monedero||m.estado_orain==='IMPOSIBLE').length;
+  // Telemetría activa = ORAIN instalado + es telemetría + tiene audit
+  const conTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && m.ultimo_audit).length;
+  // Pendiente ORAIN = sin ORAIN, sin contar imposibles
+  const pendienteOrain = maquinas.filter(m=>m.estado_orain==='PENDIENTE').length;
+  // Pendiente Telemetría REAL = tiene ORAIN + es_telemetria (puede tenerla) pero sin audit activo
+  const pendienteTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && !m.ultimo_audit).length;
+  // Sin comunicación +4 días
   const sinCom4d = maquinas.filter(m=>{
-    // Solo máquinas con ORAIN instalado Y telemetría activa que llevan +4 días sin comunicar
     if(m.estado_orain!=='INSTALADO') return false;
     if(!m.es_telemetria) return false;
     if(!m.ultimo_audit) return false;
@@ -2923,24 +2932,23 @@ function orainIndicadores(isla){
     return diff>=4;
   });
 
-  // Por ruta
+  // Por ruta — separar bluetooth/imposibles de telemetría real
   const sinCom4dSet = new Set(sinCom4d.map(x=>x.cod_maq));
   const porRuta={};
   maquinas.forEach(m=>{
-    // Use ruta from machine, fallback to 'Sin ruta asignada' 
     const ruta = (m.ruta||'').trim() || 'Sin ruta asignada';
     if(!porRuta[ruta]) porRuta[ruta]={total:0,orain:0,telemetria:0,pendienteOrain:0,pendienteTelemetria:0,imposible:0,sinCom:0};
     porRuta[ruta].total++;
-    if(m.estado_orain==='INSTALADO'){
+    if(m.tiene_monedero||m.estado_orain==='IMPOSIBLE'){
+      porRuta[ruta].imposible++;
+    } else if(m.estado_orain==='INSTALADO'){
       porRuta[ruta].orain++;
-      // Telemetría = ORAIN instalado Y es telemetría (no bluetooth)
       if(m.es_telemetria && m.ultimo_audit) porRuta[ruta].telemetria++;
-      else if(m.es_telemetria) porRuta[ruta].pendienteTelemetria++;
-      // Bluetooth machines: have ORAIN but no telemetría - count as pendiente telemetría
-      else if(!m.es_telemetria) porRuta[ruta].pendienteTelemetria++;
+      else if(m.es_telemetria && !m.ultimo_audit) porRuta[ruta].pendienteTelemetria++;
+      // bluetooth: tiene ORAIN pero no puede tener telemetría — no cuenta
+    } else if(m.estado_orain==='PENDIENTE'){
+      porRuta[ruta].pendienteOrain++;
     }
-    if(m.estado_orain==='PENDIENTE') porRuta[ruta].pendienteOrain++;
-    if(m.tiene_monedero||m.estado_orain==='IMPOSIBLE') porRuta[ruta].imposible++;
     if(m.estado_orain==='INSTALADO' && sinCom4dSet.has(m.cod_maq)) porRuta[ruta].sinCom++;
   });
 
@@ -3031,16 +3039,20 @@ function renderOrainVista(){
       console.log('Isla ' + isla + ': ' + m.length);
       const total = m.length;
       if(!total) return null;
-      const conOrain  = m.filter(x=>x.estado_orain==='INSTALADO').length;
-      const conTele   = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit).length;
-      const pendOrain = m.filter(x=>x.estado_orain==='PENDIENTE').length;
-      // Pendiente telemetría REAL: tiene ORAIN, es telemetría (no bluetooth/imposible), pero sin audit
-      const pendTele  = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&!x.ultimo_audit).length;
+      const conOrain   = m.filter(x=>x.estado_orain==='INSTALADO').length;
+      const conTele    = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit).length;
+      const pendOrain  = m.filter(x=>x.estado_orain==='PENDIENTE').length;
+      const pendTele   = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&!x.ultimo_audit).length;
       const imposibles = m.filter(x=>x.estado_orain==='IMPOSIBLE'||x.tiene_monedero).length;
-      // Excluir imposibles del máximo — no penalizan ni puntúan
+      const sinCom     = m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit&&(new Date()-new Date(x.ultimo_audit))/(1000*3600*24)>=4).length;
+      // Posibles = total - imposibles (estos no penalizan ni puntúan)
       const posibles = Math.max(1, total - imposibles);
+      // Pendiente ORAIN real = pendOrain - imposibles (ya excluidos del total pero por si acaso)
+      const pendOrainReal = Math.max(0, pendOrain);
       const maxPts = posibles * 2;
-      const pts = (conOrain + conTele) - (pendOrain + pendTele);
+      // Positivos: ORAIN instalado + telemetría activa
+      // Negativos: pendiente ORAIN + pendiente telemetría real + sin comunicación
+      const pts = (conOrain + conTele) - (pendOrainReal + pendTele + sinCom);
       const score = Math.round((pts / maxPts) * 100);
       const pctOrain = Math.round(conOrain/posibles*100);
       const pctTele  = conOrain>0?Math.round(conTele/conOrain*100):0;
@@ -3097,36 +3109,57 @@ function renderOrainVista(){
     html+=`<div class="orain-card">
       <div style="font-size:13px;font-weight:700;font-family:var(--ff);color:#ff8c00;margin-bottom:12px">Estado por ruta</div>
       <!-- Cabecera -->
-      <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;padding:5px 8px;margin-bottom:4px">
+      <div style="display:grid;grid-template-columns:2fr 50px 55px 50px 55px 55px 50px;gap:4px;padding:5px 8px;margin-bottom:4px">
         <div style="font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em">Ruta / Progreso</div>
         <div style="font-size:9px;color:var(--blue);text-align:center">Total</div>
         <div style="font-size:9px;color:var(--green);text-align:center">ORAIN</div>
-        <div style="font-size:9px;color:#ff8c00;text-align:center">P.ORAIN</div>
-        <div style="font-size:9px;color:rgba(61,207,142,.7);text-align:center">Tele.</div>
-        <div style="font-size:9px;color:var(--amber);text-align:center">P.Tele.</div>
         <div style="font-size:9px;color:var(--t3);text-align:center">Impos.</div>
+        <div style="font-size:9px;color:rgba(61,207,142,.8);text-align:center">Tele.</div>
+        <div style="font-size:9px;color:var(--amber);text-align:center">P.Tele.</div>
+        <div style="font-size:9px;color:var(--red);text-align:center">Sin com.</div>
       </div>
       ${rutas.filter(([r])=>r!=='Sin ruta asignada').map(([ruta,vals])=>{
         // Progress: (ORAIN instalado) / (total - imposibles) * 100
         const objetivo = Math.max(1, vals.total - vals.imposible);
         const pct = Math.min(100, Math.round(vals.orain / objetivo * 100));
         const barColor = pct>=90?'var(--green)':pct>=60?'#ff8c00':'var(--red)';
+        // Colores ORAIN: verde si cerca del total posible, rojo si faltan >10
+        const posiblesRuta=Math.max(1,vals.total-vals.imposible);
+        const pctOrainRuta=Math.round(vals.orain/posiblesRuta*100);
+        const bcOrainRuta=vals.pendienteOrain<=10?'var(--green)':vals.pendienteOrain<=20?'var(--amber)':'var(--red)';
+        // Colores Telemetría: referencia = ORAIN instalado - bluetooth imposibles
+        // En este caso usamos orain como referencia
+        const objTele=Math.max(1,vals.orain);
+        const pctTeleRuta=Math.round(vals.telemetria/objTele*100);
+        const faltanTele=vals.orain-vals.telemetria;
+        const bcTeleRuta=faltanTele<=10?'var(--green)':faltanTele<=20?'var(--amber)':'var(--red)';
+
         return `<div style="background:var(--bg3);border-radius:8px;padding:8px;margin-bottom:4px">
-          <div style="display:grid;grid-template-columns:2fr 55px 55px 55px 55px 55px 55px;gap:4px;align-items:center;margin-bottom:6px">
+          <div style="display:grid;grid-template-columns:2fr 50px 55px 50px 55px 55px 50px;gap:4px;align-items:center;margin-bottom:6px">
             <div style="font-size:12px;font-weight:600;font-family:var(--ff);color:var(--t1)">${ruta}</div>
             <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--blue);text-align:center">${vals.total}</div>
-            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--green);text-align:center">${vals.orain}</div>
-            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:#ff8c00;text-align:center">${vals.pendienteOrain}</div>
-            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:rgba(61,207,142,.8);text-align:center">${vals.telemetria}</div>
-            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${vals.pendienteTelemetria}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:${bcOrainRuta};text-align:center">${vals.orain}</div>
             <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--t3);text-align:center">${vals.imposible}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:${bcTeleRuta};text-align:center">${vals.telemetria}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:var(--amber);text-align:center">${vals.pendienteTelemetria}</div>
+            <div style="font-size:13px;font-weight:800;font-family:var(--ff);color:${vals.sinCom>0?'var(--red)':'var(--t3)'};text-align:center">${vals.sinCom}</div>
           </div>
-          <!-- Barra de progreso -->
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
-              <div style="width:${pct}%;height:100%;background:${barColor};border-radius:3px;transition:width .6s ease"></div>
+          <!-- Dos barras: ORAIN y Telemetría -->
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8px;color:var(--t3);width:32px">ORAIN</div>
+              <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
+                <div style="width:${pctOrainRuta}%;height:100%;background:${bcOrainRuta};border-radius:3px"></div>
+              </div>
+              <div style="font-size:9px;font-weight:700;color:${bcOrainRuta};min-width:28px;text-align:right">${pctOrainRuta}%</div>
             </div>
-            <div style="font-size:10px;font-weight:700;color:${barColor};min-width:30px;text-align:right">${pct}%</div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="font-size:8px;color:var(--t3);width:32px">Tele.</div>
+              <div style="flex:1;height:5px;background:var(--bg2);border-radius:3px;overflow:hidden">
+                <div style="width:${pctTeleRuta}%;height:100%;background:${bcTeleRuta};border-radius:3px"></div>
+              </div>
+              <div style="font-size:9px;font-weight:700;color:${bcTeleRuta};min-width:28px;text-align:right">${pctTeleRuta}%</div>
+            </div>
           </div>
         </div>`;
       }).join('')}
@@ -3792,9 +3825,10 @@ function renderPantallaOrainRanking(body){
     const pendOrain=m.filter(x=>x.estado_orain==='PENDIENTE').length;
     const pendTele=m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&!x.ultimo_audit).length;
     const imposibles=m.filter(x=>x.estado_orain==='IMPOSIBLE'||x.tiene_monedero).length;
+    const sinCom=m.filter(x=>x.estado_orain==='INSTALADO'&&x.es_telemetria&&x.ultimo_audit&&(new Date()-new Date(x.ultimo_audit))/(1000*3600*24)>=4).length;
     const posibles=Math.max(1,total-imposibles);
     const maxPts=posibles*2;
-    const pts=(conOrain+conTele)-(pendOrain+pendTele);
+    const pts=(conOrain+conTele)-(pendOrain+pendTele+sinCom);
     const score=Math.round((pts/maxPts)*100);
     return {isla,total,conOrain,conTele,pendOrain,pendTele,score,
       icon:({'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'})[isla]||'🏝️'};
