@@ -378,6 +378,12 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
     <div style="font-size:13px;color:var(--t2);margin-top:6px">¿A qué módulo quieres acceder?</div>
   </div>
   <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
+    <button onclick="entrarModulo('rutas')"
+      style="width:180px;height:160px;background:var(--bg2);border:0.5px solid rgba(91,156,246,.35);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;transition:all .15s;font-family:var(--fb)">
+      <span style="font-size:44px">🗺</span>
+      <span style="font-size:15px;font-weight:700;color:var(--blue)">Rutas</span>
+      <span style="font-size:11px;color:var(--t2)">Plan semanal</span>
+    </button>
     <button onclick="entrarModulo('reponedores')"
       style="width:180px;height:160px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;transition:all .15s;font-family:var(--fb)"
       onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='var(--border2)'">
@@ -411,7 +417,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
     <div class="topbar-right">
       <button class="btn-t" onclick="volverSelector()" style="border-color:rgba(61,207,142,.3);color:var(--green)">← Inicio</button>
       <button class="btn-t gold" onclick="activarPantalla()">📺 Pantalla</button>
-      <button class="btn-t" id="sup-toggle" onclick="abrirModal()">Admin</button>
+<button class="btn-t" id="sup-toggle" onclick="abrirModal()">Admin</button>
     </div>
   </div>
 
@@ -443,7 +449,7 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
         <button class="sup-tab active" onclick="supTab('rep',this)">Equipo</button>
         <button class="sup-tab" onclick="supTab('nuevo',this)">+ Reponedor</button>
         <button class="sup-tab" onclick="supTab('excel',this)">Excel</button>
-        <button class="sup-tab" onclick="supTab('hist',this)">Histórico</button>
+<button class="sup-tab" onclick="supTab('hist',this)">Histórico</button>
       </div>
 
       <div id="sup-rep-panel">
@@ -580,6 +586,12 @@ const COLORES_REP = [
 ];
 
 let datos = [];
+// ── MÓDULO RUTAS ──
+let rutasSemanales = [];  // from DB: {isla, nombre_ruta, semana, lunes, martes, miercoles, jueves, viernes}
+let erroresPrecios = [];  // from DB: {cod_maquina, isla, pdv, ubicacion, centro}
+let datosDiaRutas  = [];  // from DB: {isla, nombre_ruta, fecha, maq_realizadas, tabaco_cargado, tabaco_retirado, cuadre}
+let islaActivaRutas = 'general';
+
 let historial = [];
 let islaActiva = 'general';
 let sesionActiva = false, modoPantalla = false;
@@ -691,6 +703,29 @@ async function cargarDatos(){
     setSyncStatus('err','Error de conexión');
     console.error(e);
   }
+}
+
+// ── RUTAS: CARGA DATOS ──
+async function cargarRutasSemanales(){
+  try{
+    const {data,error}=await sb.from('rutas_semana').select('*').order('created_at',{ascending:false});
+    if(error) throw error;
+    rutasSemanales=data||[];
+  }catch(e){ console.error('Error rutas:',e); }
+}
+async function cargarErroresPrecios(){
+  try{
+    const {data,error}=await sb.from('errores_precio').select('*');
+    if(error) throw error;
+    erroresPrecios=data||[];
+  }catch(e){ console.error('Error precios:',e); }
+}
+async function cargarDatosDiaRutas(){
+  try{
+    const {data,error}=await sb.from('rutas_datos_dia').select('*');
+    if(error) throw error;
+    datosDiaRutas=data||[];
+  }catch(e){ console.error('Error datos dia:',e); }
 }
 
 async function cargarHistorico(){
@@ -1613,6 +1648,7 @@ function verificarLogin(){
 }
 
 function ocultarTodosModulos(){
+  document.getElementById('modulo-rutas').style.display='none';
   document.getElementById('app').style.display='none';
   document.getElementById('modulo-tecnicos').style.display='none';
   const mo=document.getElementById('modulo-orain');
@@ -1620,6 +1656,14 @@ function ocultarTodosModulos(){
 }
 
 function entrarModulo(modulo){
+  if(modulo==='rutas'){
+    ocultarTodosModulos();
+    document.getElementById('selector-screen').style.display='none';
+    document.getElementById('modulo-rutas').style.display='flex';
+    moduloActivo='rutas';
+    renderIslaTabsRutas();
+    return;
+  }
   if(modulo==='orain'){ pedirClaveOrain(); return; }
   moduloActivo = modulo;
   document.getElementById('selector-screen').style.display='none';
@@ -2205,6 +2249,9 @@ async function añadirAveria(){
   });
   if(error){toast('Error: '+error.message);return;}
   await cargarAverias();
+  await cargarRutasSemanales();
+  await cargarErroresPrecios();
+  await cargarDatosDiaRutas();
   await cargarCambiosMaquina();
   document.getElementById('vista-tec').innerHTML=renderAdminTecHtml();
   toast('Avería registrada');
@@ -4000,6 +4047,526 @@ function renderPantallaOrain(){
   iniciarCicloOrain();
 }
 
+// ── MÓDULO RUTAS JS ──
+// ═══════════════════════════════════════════════
+// MÓDULO RUTAS — JAVASCRIPT
+// ═══════════════════════════════════════════════
+
+const DIA_MAP = {'L':'lunes','M':'martes','X':'miercoles','J':'jueves','V':'viernes'};
+const DIA_HOY = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'][new Date().getDay()];
+const ISLAS_RUTAS = ['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'];
+
+let _rutasPantallaTimer=null;
+let _rutasPantallaFase=0;
+let _rutasRelojInterval=null;
+
+function salirRutas(){
+  ocultarTodosModulos();
+  document.getElementById('selector-screen').style.display='flex';
+  moduloActivo=null;
+}
+
+function abrirAdminRutas(){
+  document.getElementById('rutas-admin').style.display='block';
+  renderRutasListaAdmin();
+  renderRutasDatosForm();
+}
+
+function cerrarAdminRutas(){
+  document.getElementById('rutas-admin').style.display='none';
+}
+
+function rutasAdminTab(tab, btn){
+  ['subida','datos','precios'].forEach(t=>{
+    document.getElementById('rutas-panel-'+t).style.display=t===tab?'':'none';
+  });
+  document.querySelectorAll('#rutas-admin .sup-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── TABS ISLAS ──
+function renderIslaTabsRutas(){
+  const tabs=document.getElementById('isla-tabs-rutas');
+  if(!tabs) return;
+  const all=[{id:'general',label:'🌐 General'},...ISLAS_RUTAS.map(i=>({id:i,label:islaIcon(i)+' '+i}))];
+  tabs.innerHTML=all.map(t=>`<button class="isla-tab ${islaActivaRutas===t.id?'active':''}"
+    style="${islaActivaRutas===t.id?'color:var(--blue);border-bottom-color:var(--blue)':''}"
+    onclick="cambiarIslaRutas('${t.id}')">${t.label}</button>`).join('');
+  renderRutasVista();
+  // Reloj
+  actualizarFechaRutas();
+  if(!window._rutasFechaInterval) window._rutasFechaInterval=setInterval(actualizarFechaRutas,1000);
+}
+
+function actualizarFechaRutas(){
+  const el=document.getElementById('rutas-fecha');
+  if(el){
+    const a=new Date();
+    el.textContent=a.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})+' · '+a.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  }
+}
+
+function cambiarIslaRutas(isla){
+  islaActivaRutas=isla;
+  renderIslaTabsRutas();
+}
+
+// ── RENDER VISTA PRINCIPAL ──
+function renderRutasVista(){
+  const vista=document.getElementById('rutas-vista');
+  if(!vista) return;
+
+  if(islaActivaRutas==='general'){
+    renderRutasGeneral(vista);
+  } else {
+    renderRutasIsla(vista, islaActivaRutas);
+  }
+}
+
+function renderRutasGeneral(vista){
+  const hoy=DIA_HOY;
+  const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
+  let html=`<div style="font-size:18px;font-weight:800;font-family:var(--ff);color:var(--blue);margin-bottom:16px">Hoy es ${diaLabel}</div>`;
+
+  const islasSummary=ISLAS_RUTAS.map(isla=>{
+    const rutas=rutasSemanales.filter(r=>r.isla===isla);
+    const rutasHoy=rutas.filter(r=>r[hoy]&&r[hoy].length>0);
+    const totalMaq=rutasHoy.reduce((s,r)=>(r[hoy]||[]).length+s,0);
+    const errIsla=erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina);
+    const totalErr=rutasHoy.reduce((s,r)=>(r[hoy]||[]).filter(m=>errIsla.includes(m.cod)).length+s,0);
+    const datosHoy=datosDiaRutas.filter(d=>d.isla===isla&&d.fecha===new Date().toISOString().slice(0,10));
+    const maqReal=datosHoy.reduce((s,d)=>s+(d.maq_realizadas||0),0);
+    return {isla,rutasHoy:rutasHoy.length,totalMaq,totalErr,maqReal};
+  });
+
+  html+=`<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+    ${islasSummary.map(s=>`
+      <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:16px;cursor:pointer" onclick="cambiarIslaRutas('${s.isla}')">
+        <div style="font-size:16px;font-weight:800;font-family:var(--ff);color:var(--blue);margin-bottom:12px">${islaIcon(s.isla)} ${s.isla}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:22px;font-weight:800;font-family:var(--ff);color:var(--blue)">${s.rutasHoy}</div>
+            <div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:2px">Rutas hoy</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:22px;font-weight:800;font-family:var(--ff);color:var(--green)">${s.totalMaq}</div>
+            <div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:2px">Máq. previstas</div>
+          </div>
+          <div style="background:var(--bg3);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:22px;font-weight:800;font-family:var(--ff);color:${s.totalErr>0?'var(--red)':'var(--green)'}">${s.totalErr}</div>
+            <div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:2px">Errores precio</div>
+          </div>
+        </div>
+      </div>`).join('')}
+  </div>`;
+  vista.innerHTML=html;
+}
+
+function renderRutasIsla(vista, isla){
+  const hoy=DIA_HOY;
+  const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
+  const rutas=rutasSemanales.filter(r=>r.isla===isla&&r[hoy]&&r[hoy].length>0);
+  const errIsla=new Set(erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina));
+  const today=new Date().toISOString().slice(0,10);
+
+  if(!rutas.length){
+    vista.innerHTML=`<div style="text-align:center;color:var(--t3);padding:60px 0;font-size:14px">
+      No hay rutas programadas para hoy (${diaLabel}) en ${isla}.<br><span style="font-size:12px;margin-top:8px;display:block">Sube el plan semanal desde Admin → Rutas</span></div>`;
+    return;
+  }
+
+  vista.innerHTML=`
+    <div style="font-size:16px;font-weight:800;font-family:var(--ff);color:var(--blue);margin-bottom:14px">${islaIcon(isla)} ${isla} — ${diaLabel}</div>
+    <div style="display:grid;grid-template-columns:repeat(${Math.min(rutas.length,3)},1fr);gap:14px;align-items:start">
+      ${rutas.map(r=>buildRutaCard(r,hoy,errIsla,today,isla)).join('')}
+    </div>`;
+}
+
+function buildRutaCard(r, hoy, errIsla, today, isla){
+  const maquinas=r[hoy]||[];
+  const datos=datosDiaRutas.find(d=>d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today)||{};
+  const maqErr=maquinas.filter(m=>errIsla.has(m.cod)).length;
+  const maqPrev=maquinas.length;
+  const maqReal=datos.maq_realizadas||0;
+
+  return `<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px">
+    <!-- Nombre ruta -->
+    <div style="font-size:16px;font-weight:800;font-family:var(--ff);color:var(--blue)">${r.nombre_ruta}</div>
+    <!-- Grid datos 3x3 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      <!-- Fila 1 -->
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:var(--blue)">${maqPrev}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Previstas</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:${maqReal>=maqPrev?'var(--green)':'var(--amber)'}">${maqReal}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Realizadas</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:18px;font-weight:800;font-family:var(--ff);color:${maqErr>0?'var(--red)':'var(--green)'}">${maqErr}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Err. precio</div>
+      </div>
+      <!-- Fila 2 -->
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--t1)">—</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Tab. esperado</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--green)">${datos.tabaco_cargado||'—'}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Tab. cargado</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--amber)">${datos.tabaco_retirado||'—'}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Tab. retirado</div>
+      </div>
+      <!-- Fila 3 -->
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:${datos.cuadre!=null&&datos.cuadre!==0?(datos.cuadre>0?'var(--green)':'var(--red)'):'var(--t1)'}">${datos.cuadre!=null?datos.cuadre:'—'}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Cuadre</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:${maqErr>0?'var(--red)':'var(--green)'}">${maqErr}</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Err. precio</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center">
+        <div style="font-size:15px;font-weight:800;font-family:var(--ff);color:var(--t1)">—</div>
+        <div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Mal config.</div>
+      </div>
+    </div>
+    <!-- Lista máquinas con autoscroll -->
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em">${maquinas.length} máquinas programadas</div>
+    <div style="height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll">
+      ${maquinas.map(m=>{
+        const err=errIsla.has(m.cod);
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:${err?'rgba(224,85,85,.15)':'var(--bg3)'};border:0.5px solid ${err?'rgba(224,85,85,.4)':'transparent'}">
+          ${err?'<span style="animation:blink 1s infinite;font-size:12px">⚠</span>':''}
+          <span style="font-size:11px;font-weight:700;color:${err?'var(--red)':'var(--t1)'};flex-shrink:0">${m.cod}</span>
+          <span style="font-size:11px;color:${err?'var(--red)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nombre}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+// ── EXCEL PROCESSING ──
+async function procesarExcelRuta(input){
+  const file=input.files[0]; if(!file) return;
+  const isla=document.getElementById('ruta-isla-select').value;
+  const nombre=document.getElementById('ruta-nombre-input').value.trim();
+  if(!nombre){ toast('Indica el nombre de la ruta'); return; }
+
+  const preview=document.getElementById('ruta-upload-preview');
+  preview.innerHTML='<div style="color:var(--amber);font-size:12px">⏳ Procesando...</div>';
+
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const wb=XLSX.read(e.target.result,{type:'binary',cellDates:false});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+
+    // Row 0: headers like L13, M13, X13, J13, V13
+    const headers=(allRows[0]||[]).map(h=>String(h||'').trim());
+    const dataRows=allRows.slice(1).filter(r=>r&&r.some(c=>c));
+
+    const dias={lunes:[],martes:[],miercoles:[],jueves:[],viernes:[]};
+    headers.forEach((h,colIdx)=>{
+      const letra=h.charAt(0).toUpperCase(); // L, M, X, J, V
+      const diaKey=DIA_MAP[letra];
+      if(!diaKey) return;
+      dataRows.forEach(row=>{
+        const cell=row[colIdx];
+        if(!cell) return;
+        const parts=String(cell).split(' - ');
+        if(parts.length>=2){
+          const cod=parts[1].trim();
+          const nombre=parts[0].trim();
+          if(cod) dias[diaKey].push({cod,nombre});
+        }
+      });
+    });
+
+    const semana=`${new Date().getFullYear()}-W${Math.ceil(new Date().getDate()/7)}`;
+    // Save to Supabase
+    const {error}=await sb.from('rutas_semana').upsert([{
+      isla, nombre_ruta:nombre, semana,
+      lunes:dias.lunes, martes:dias.martes, miercoles:dias.miercoles,
+      jueves:dias.jueves, viernes:dias.viernes
+    }],{onConflict:'isla,nombre_ruta,semana'});
+
+    if(error){ preview.innerHTML=`<div style="color:var(--red);font-size:12px">Error: ${error.message}</div>`; return; }
+
+    await cargarRutasSemanales();
+    renderRutasListaAdmin();
+    renderRutasVista();
+    preview.innerHTML=`<div style="color:var(--green);font-size:12px">✓ Ruta "${nombre}" guardada — ${Object.values(dias).reduce((s,a)=>s+a.length,0)} entradas</div>`;
+    toast('Ruta guardada');
+    input.value='';
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function procesarExcelPrecios(input){
+  const file=input.files[0]; if(!file) return;
+  const isla=document.getElementById('precios-isla-select').value;
+  const preview=document.getElementById('precios-upload-preview');
+  preview.innerHTML='<div style="color:var(--amber);font-size:12px">⏳ Procesando...</div>';
+
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    const wb=XLSX.read(e.target.result,{type:'binary',cellDates:false});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+
+    // Find header row (has 'Máquina')
+    const hIdx=allRows.findIndex(r=>r&&r.some(c=>String(c||'').toLowerCase().includes('máquina')));
+    if(hIdx===-1){ preview.innerHTML='<div style="color:var(--red);font-size:12px">No se encontró cabecera</div>'; return; }
+
+    const headers=allRows[hIdx].map(h=>String(h||'').toLowerCase().trim());
+    const maqIdx=headers.findIndex(h=>h.includes('máquina')||h==='maquina');
+    const difIdx=headers.findIndex(h=>h.includes('dif'));
+    const pdvIdx=0;
+    const ubicIdx=headers.findIndex(h=>h.includes('ubic'));
+    const centroIdx=headers.findIndex(h=>h.includes('centro'));
+
+    const errores=[];
+    allRows.slice(hIdx+1).forEach(row=>{
+      if(!row) return;
+      const dif=row[difIdx];
+      if(dif===true||dif===1||String(dif||'').toLowerCase()==='true'){
+        const cod=String(row[maqIdx]||'').trim();
+        if(cod) errores.push({
+          isla, cod_maquina:cod,
+          pdv:String(row[pdvIdx]||'').trim(),
+          ubicacion:String(row[ubicIdx]||'').trim(),
+          centro:String(row[centroIdx]||'').trim(),
+          updated_at:new Date().toISOString()
+        });
+      }
+    });
+
+    // Delete existing for this isla and reinsert
+    await sb.from('errores_precio').delete().eq('isla',isla);
+    if(errores.length){
+      for(let i=0;i<errores.length;i+=200){
+        await sb.from('errores_precio').insert(errores.slice(i,i+200));
+      }
+    }
+    await cargarErroresPrecios();
+    renderRutasVista();
+    preview.innerHTML=`<div style="color:var(--green);font-size:12px">✓ ${errores.length} máquinas con error de precio guardadas</div>`;
+    toast('Errores de precio actualizados');
+    input.value='';
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function borrarErroresPrecios(){
+  const isla=document.getElementById('precios-isla-select').value;
+  if(!confirm(`¿Borrar todos los errores de precio de ${isla}?`)) return;
+  await sb.from('errores_precio').delete().eq('isla',isla);
+  await cargarErroresPrecios();
+  renderRutasVista();
+  toast('Errores borrados');
+}
+
+function renderRutasListaAdmin(){
+  const el=document.getElementById('rutas-lista-admin');
+  if(!el) return;
+  if(!rutasSemanales.length){ el.innerHTML='<div style="color:var(--t3);font-size:12px">Sin rutas cargadas</div>'; return; }
+  el.innerHTML=rutasSemanales.map(r=>`
+    <div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:12px;font-weight:700">${islaIcon(r.isla)} ${r.isla} — ${r.nombre_ruta}</div>
+        <div style="font-size:10px;color:var(--t2)">L:${(r.lunes||[]).length} M:${(r.martes||[]).length} X:${(r.miercoles||[]).length} J:${(r.jueves||[]).length} V:${(r.viernes||[]).length}</div>
+      </div>
+      <button onclick="borrarRuta('${r.id}')" style="padding:3px 8px;border-radius:6px;border:0.5px solid rgba(224,85,85,.3);background:transparent;color:var(--red);font-size:10px;cursor:pointer">Borrar</button>
+    </div>`).join('');
+}
+
+async function borrarRuta(id){
+  if(!confirm('¿Borrar esta ruta?')) return;
+  await sb.from('rutas_semana').delete().eq('id',id);
+  await cargarRutasSemanales();
+  renderRutasListaAdmin();
+  renderRutasVista();
+  toast('Ruta borrada');
+}
+
+function renderRutasDatosForm(){
+  const el=document.getElementById('rutas-datos-forms');
+  if(!el) return;
+  const today=new Date().toISOString().slice(0,10);
+  const hoy=DIA_HOY;
+  const rutasHoy=rutasSemanales.filter(r=>r[hoy]&&r[hoy].length>0);
+  if(!rutasHoy.length){ el.innerHTML='<div style="color:var(--t3);font-size:12px">No hay rutas para hoy</div>'; return; }
+  el.innerHTML=rutasHoy.map(r=>{
+    const datos=datosDiaRutas.find(d=>d.isla===r.isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today)||{};
+    const id=`rd-${r.isla}-${r.nombre_ruta}`.replace(/\s/g,'-');
+    return `<div style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px">${islaIcon(r.isla)} ${r.isla} — ${r.nombre_ruta}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="field"><label>Máq. realizadas</label><input type="number" id="${id}-maq" value="${datos.maq_realizadas||''}" placeholder="0"></div>
+        <div class="field"><label>Cuadre (€)</label><input type="number" id="${id}-cuadre" step="0.01" value="${datos.cuadre||''}" placeholder="0.00"></div>
+        <div class="field"><label>Tabaco cargado</label><input type="number" id="${id}-tcarg" value="${datos.tabaco_cargado||''}" placeholder="0"></div>
+        <div class="field"><label>Tabaco retirado</label><input type="number" id="${id}-tret" value="${datos.tabaco_retirado||''}" placeholder="0"></div>
+      </div>
+      <button onclick="guardarDatosRuta('${r.isla}','${r.nombre_ruta}','${today}','${id}')" class="save-btn" style="font-size:12px;padding:7px 14px">Guardar</button>
+    </div>`;
+  }).join('');
+}
+
+async function guardarDatosRuta(isla, nombreRuta, fecha, id){
+  const maq=parseFloat(document.getElementById(id+'-maq')?.value)||0;
+  const cuadre=parseFloat(document.getElementById(id+'-cuadre')?.value)||0;
+  const tcarg=parseFloat(document.getElementById(id+'-tcarg')?.value)||0;
+  const tret=parseFloat(document.getElementById(id+'-tret')?.value)||0;
+  const {error}=await sb.from('rutas_datos_dia').upsert([{
+    isla, nombre_ruta:nombreRuta, fecha,
+    maq_realizadas:maq, cuadre, tabaco_cargado:tcarg, tabaco_retirado:tret,
+    updated_at:new Date().toISOString()
+  }],{onConflict:'isla,nombre_ruta,fecha'});
+  if(error){ toast('Error: '+error.message); return; }
+  await cargarDatosDiaRutas();
+  renderRutasVista();
+  toast('Datos guardados');
+}
+
+// ── PANTALLA TV ──
+let _rutasPantallaReloj=null;
+
+function activarPantallaRutas(){
+  document.getElementById('pantalla-rutas').style.display='flex';
+  _rutasPantallaFase=0;
+  if(!_rutasPantallaReloj){
+    _rutasPantallaReloj=setInterval(()=>{
+      const el=document.getElementById('pantalla-rutas-reloj');
+      if(el) el.textContent=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    },1000);
+  }
+  iniciarCicloRutas();
+}
+
+function salirPantallaRutas(){
+  document.getElementById('pantalla-rutas').style.display='none';
+  if(_rutasPantallaTimer){ clearTimeout(_rutasPantallaTimer); _rutasPantallaTimer=null; }
+}
+
+function iniciarCicloRutas(){
+  if(_rutasPantallaTimer){ clearTimeout(_rutasPantallaTimer); }
+  const hoy=DIA_HOY;
+  const isla=islaActivaRutas==='general'?null:islaActivaRutas;
+  const rutas=rutasSemanales.filter(r=>r[hoy]&&r[hoy].length>0&&(!isla||r.isla===isla));
+  const totalFases=Math.max(1,rutas.length);
+  const fase=_rutasPantallaFase%totalFases;
+  const duracion=30000;
+
+  try{
+    const body=document.getElementById('pantalla-rutas-body');
+    const ruta=rutas[fase];
+    if(ruta){
+      const title=document.getElementById('pantalla-rutas-title');
+      const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
+      if(title) title.textContent=`🗺 ${islaIcon(ruta.isla)} ${ruta.isla} — ${ruta.nombre_ruta} — ${diaLabel}`;
+      renderPantallaRutaDetalle(body,ruta,hoy,isla||ruta.isla);
+    } else {
+      if(body) body.innerHTML='<div style="text-align:center;color:var(--t3);padding:60px;font-size:16px">Sin rutas programadas para hoy</div>';
+    }
+  }catch(e){ console.error('Ciclo rutas error:',e); }
+
+  const bar=document.getElementById('rutas-p-bar');
+  if(bar){
+    bar.style.transition='none'; bar.style.width='100%';
+    setTimeout(()=>{ bar.style.transition=`width ${duracion}ms linear`; bar.style.width='0%'; },50);
+  }
+  _rutasPantallaFase++;
+  _rutasPantallaTimer=setTimeout(iniciarCicloRutas,duracion);
+}
+
+function renderPantallaRutaDetalle(body, r, hoy, isla){
+  const maquinas=r[hoy]||[];
+  const errIsla=new Set(erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina));
+  const today=new Date().toISOString().slice(0,10);
+  const datos=datosDiaRutas.find(d=>d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today)||{};
+  const maqErr=maquinas.filter(m=>errIsla.has(m.cod)).length;
+  const maqPrev=maquinas.length;
+  const maqReal=datos.maq_realizadas||0;
+
+  body.style.overflow='hidden';
+  body.innerHTML=`
+  <div style="display:grid;grid-template-columns:1fr 2fr;gap:20px;height:100%">
+    <!-- Columna izquierda: stats -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="background:var(--bg2);border:0.5px solid rgba(91,156,246,.3);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:40px;font-weight:800;font-family:var(--ff);color:var(--blue)">${maqPrev}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Previstas</div>
+        </div>
+        <div style="background:var(--bg2);border:0.5px solid rgba(61,207,142,.3);border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:40px;font-weight:800;font-family:var(--ff);color:${maqReal>=maqPrev?'var(--green)':'var(--amber)'}">${maqReal}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Realizadas</div>
+        </div>
+        <div style="background:${maqErr>0?'rgba(224,85,85,.1)':'var(--bg2)'};border:0.5px solid ${maqErr>0?'rgba(224,85,85,.4)':'var(--border)'};border-radius:12px;padding:16px;text-align:center">
+          <div style="font-size:40px;font-weight:800;font-family:var(--ff);color:${maqErr>0?'var(--red)':'var(--green)'}">${maqErr}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Err. precio</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--green)">${datos.tabaco_cargado||'—'}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Tab. cargado</div>
+        </div>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--amber)">${datos.tabaco_retirado||'—'}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Tab. retirado</div>
+        </div>
+        <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;text-align:center">
+          <div style="font-size:28px;font-weight:800;font-family:var(--ff);color:${datos.cuadre>0?'var(--green)':datos.cuadre<0?'var(--red)':'var(--t1)'}">${datos.cuadre!=null?datos.cuadre+'€':'—'}</div>
+          <div style="font-size:10px;color:var(--t2);text-transform:uppercase;margin-top:4px">Cuadre</div>
+        </div>
+      </div>
+      ${maqErr>0?`<div style="background:rgba(224,85,85,.08);border:0.5px solid rgba(224,85,85,.3);border-radius:12px;padding:14px;flex:1;overflow:hidden">
+        <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px;animation:blink 1s infinite">⚠ Máquinas con error de precio</div>
+        <div style="overflow-y:auto;height:calc(100% - 28px);display:flex;flex-direction:column;gap:5px">
+          ${maquinas.filter(m=>errIsla.has(m.cod)).map(m=>`
+            <div style="background:rgba(224,85,85,.12);border-radius:6px;padding:6px 8px;display:flex;gap:8px">
+              <span style="font-size:13px;font-weight:700;color:var(--red)">${m.cod}</span>
+              <span style="font-size:12px;color:var(--red)">${m.nombre}</span>
+            </div>`).join('')}
+        </div>
+      </div>`:'<div style="background:rgba(61,207,142,.08);border:0.5px solid rgba(61,207,142,.3);border-radius:12px;padding:14px;text-align:center;flex:1;display:flex;align-items:center;justify-content:center"><div style="font-size:16px;color:var(--green)">✓ Sin errores de precio</div></div>'}
+    </div>
+    <!-- Columna derecha: lista máquinas -->
+    <div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;overflow:hidden">
+      <div style="font-size:13px;font-weight:700;color:var(--t2);margin-bottom:10px;flex-shrink:0">${maquinas.length} máquinas programadas hoy</div>
+      <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:5px" id="pantalla-rutas-scroll">
+        ${maquinas.map((m,i)=>{
+          const err=errIsla.has(m.cod);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;background:${err?'rgba(224,85,85,.12)':'var(--bg3)'};border:0.5px solid ${err?'rgba(224,85,85,.3)':'transparent'}">
+            <span style="font-size:12px;color:var(--t3);min-width:20px">${i+1}</span>
+            <span style="font-size:13px;font-weight:700;color:${err?'var(--red)':'var(--t1)'};flex-shrink:0">${m.cod}</span>
+            <span style="font-size:13px;color:${err?'var(--red)':'var(--t2)'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nombre}</span>
+            ${err?'<span style="font-size:14px;animation:blink 1s infinite">⚠</span>':''}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Autoscroll machine list
+  setTimeout(()=>{
+    const sc=document.getElementById('pantalla-rutas-scroll');
+    if(sc&&sc.scrollHeight>sc.clientHeight){
+      let dir=1;
+      setInterval(()=>{
+        sc.scrollTop+=dir*1;
+        if(sc.scrollTop+sc.clientHeight>=sc.scrollHeight-2){dir=-1;setTimeout(()=>{dir=1;},3000);}
+        if(sc.scrollTop<=0&&dir===-1) dir=1;
+      },40);
+    }
+  },800);
+}
+
 // ORAIN navigation handled in entrarModulo directly
 
 // ═══════════════════════════════════════════════
@@ -4155,6 +4722,107 @@ function renderPantallaOrain(){
   <div style="flex:1;overflow:auto;padding:20px 28px" id="orain-pantalla-body"></div>
   <div style="height:4px;background:var(--bg3);flex-shrink:0">
     <div id="orain-p-bar" style="height:100%;background:#ff8c00;width:100%;border-radius:0"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════ MÓDULO RUTAS ═══════════════════ -->
+<div id="modulo-rutas" style="display:none;flex-direction:column;height:100vh;background:var(--bg1);overflow:hidden">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title"><span class="live-dot"></span>🗺 Rutas — Plan Semanal</div>
+      <div class="topbar-sub" id="rutas-fecha"></div>
+    </div>
+    <div class="topbar-right">
+      <button class="btn-t" onclick="salirRutas()" style="border-color:rgba(61,207,142,.3);color:var(--green)">← Inicio</button>
+      <button class="btn-t gold" onclick="activarPantallaRutas()">📺 Pantalla</button>
+      <button class="btn-t" onclick="abrirAdminRutas()" id="rutas-admin-btn">Admin</button>
+    </div>
+  </div>
+  <!-- Tabs islas -->
+  <div class="isla-tabs" id="isla-tabs-rutas"></div>
+  <!-- Vista principal -->
+  <div style="flex:1;overflow-y:auto;padding:14px 16px" id="rutas-vista"></div>
+  <!-- Admin panel -->
+  <div id="rutas-admin" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;overflow-y:auto">
+    <div style="max-width:700px;margin:40px auto;background:var(--bg2);border-radius:16px;padding:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:16px;font-weight:700;font-family:var(--ff)">Admin Rutas</div>
+        <button onclick="cerrarAdminRutas()" style="background:transparent;border:none;color:var(--t2);font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div class="sup-tabs">
+        <button class="sup-tab active" onclick="rutasAdminTab('subida',this)">📁 Subida archivos</button>
+        <button class="sup-tab" onclick="rutasAdminTab('datos',this)">✏️ Datos del día</button>
+        <button class="sup-tab" onclick="rutasAdminTab('precios',this)">💰 Control precios</button>
+      </div>
+      <!-- Panel subida -->
+      <div id="rutas-panel-subida">
+        <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Sube el plan semanal de cada ruta (un archivo por ruta). El sistema detecta el día automáticamente.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+          <div class="field"><label>Isla</label>
+            <select id="ruta-isla-select">
+              <option value="Lanzarote">🌋 Lanzarote</option>
+              <option value="Fuerteventura">🏖️ Fuerteventura</option>
+              <option value="Gran Canaria">🐕 Gran Canaria</option>
+              <option value="Tenerife">🏔️ Tenerife</option>
+            </select>
+          </div>
+          <div class="field"><label>Nombre de la ruta</label>
+            <input type="text" id="ruta-nombre-input" placeholder="Ej: Ruta Sur">
+          </div>
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('ruta-file-input').click()">
+          <input type="file" id="ruta-file-input" accept=".xlsx,.xls" style="display:none" onchange="procesarExcelRuta(this)">
+          <div class="upload-title">📂 Subir plan semanal Excel</div>
+          <div class="upload-sub">Formato: columnas L M X J V con máquinas por día</div>
+        </div>
+        <div id="ruta-upload-preview" style="margin-top:10px"></div>
+        <div style="margin-top:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--t2);margin-bottom:8px">Rutas cargadas:</div>
+          <div id="rutas-lista-admin"></div>
+        </div>
+      </div>
+      <!-- Panel datos día -->
+      <div id="rutas-panel-datos" style="display:none">
+        <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Introduce los datos de producción de hoy para cada ruta.</div>
+        <div id="rutas-datos-forms"></div>
+      </div>
+      <!-- Panel precios -->
+      <div id="rutas-panel-precios" style="display:none">
+        <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Sube el archivo de control de precios de la isla. Las máquinas con error (Dif=TRUE) se resaltarán en rojo.</div>
+        <div class="field" style="margin-bottom:10px"><label>Isla</label>
+          <select id="precios-isla-select">
+            <option value="Lanzarote">🌋 Lanzarote</option>
+            <option value="Fuerteventura">🏖️ Fuerteventura</option>
+            <option value="Gran Canaria">🐕 Gran Canaria</option>
+            <option value="Tenerife">🏔️ Tenerife</option>
+          </select>
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('precios-file-input').click()">
+          <input type="file" id="precios-file-input" accept=".xlsx,.xls" style="display:none" onchange="procesarExcelPrecios(this)">
+          <div class="upload-title">📂 Subir control de precios Excel</div>
+          <div class="upload-sub">Columnas: Pdv, Ubicacion, Centro, Máquina, Dif (TRUE=error)</div>
+        </div>
+        <div id="precios-upload-preview" style="margin-top:10px"></div>
+        <div style="margin-top:10px">
+          <button onclick="borrarErroresPrecios()" style="padding:7px 14px;border-radius:8px;border:0.5px solid rgba(224,85,85,.3);background:transparent;color:var(--red);font-size:12px;cursor:pointer">🗑 Borrar errores de esta isla</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Pantalla TV -->
+  <div id="pantalla-rutas" style="display:none;position:fixed;inset:0;background:#0a0a10;z-index:300;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 20px;border-bottom:0.5px solid var(--border);flex-shrink:0">
+      <div style="font-size:18px;font-weight:700;font-family:var(--ff);color:var(--blue)" id="pantalla-rutas-title">🗺 Rutas</div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <div id="pantalla-rutas-reloj" style="font-size:20px;font-weight:800;font-family:var(--ff);color:var(--t1)"></div>
+        <button onclick="salirPantallaRutas()" style="padding:6px 14px;border-radius:8px;border:0.5px solid var(--border2);background:transparent;color:var(--t2);font-size:12px;cursor:pointer">Salir</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:hidden;padding:16px 20px" id="pantalla-rutas-body"></div>
+    <div style="height:4px;background:var(--bg3);flex-shrink:0">
+      <div id="rutas-p-bar" style="height:100%;background:var(--blue);width:100%"></div>
+    </div>
   </div>
 </div>
 
