@@ -2921,10 +2921,10 @@ function orainIndicadores(isla){
   const conTelemetria = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && m.ultimo_audit).length;
   // Pendiente ORAIN: sin ORAIN y sin ser imposible
   const pendienteOrain = maquinas.filter(m=>m.estado_orain==='PENDIENTE').length;
-  // Pendiente Telemetría: tiene ORAIN instalado + es telemetría (no bluetooth) + NO tiene audit activo
-  // = conOrain - conTelemetria - bluetooth_con_orain
-  const bluetooth_con_orain = maquinas.filter(m=>m.estado_orain==='INSTALADO' && !m.es_telemetria).length;
-  const pendienteTelemetria = Math.max(0, conOrain - conTelemetria - bluetooth_con_orain);
+  // Pendiente Telemetría = ORAIN instalado - Telemetría activa - Imposibles
+  // Lanzarote: 455 ORAIN - 310 Tele - 22 Imposibles = 123 pendientes
+  const pendienteTelemetria = Math.max(0, conOrain - conTelemetria - imposibles);
+
   // Sin comunicación +4 días: tiene ORAIN + telemetría + audit caducado
   const sinCom4d = maquinas.filter(m=>{
     if(m.estado_orain!=='INSTALADO') return false;
@@ -2956,8 +2956,10 @@ function orainIndicadores(isla){
 
   // Lista de máquinas pendientes de ORAIN (para pantalla dirección)
   const listaPendienteOrain = maquinas.filter(m=>m.estado_orain==='PENDIENTE').sort((a,b)=>(a.ruta||'').localeCompare(b.ruta||''));
-  // Lista de máquinas pendientes de Telemetría (tienen ORAIN pero sin telemetría real)
-  const listaPendienteTele = maquinas.filter(m=>m.estado_orain==='INSTALADO' && m.es_telemetria && !m.ultimo_audit).sort((a,b)=>(a.ruta||'').localeCompare(b.ruta||''));
+  // Lista de máquinas pendientes de Telemetría: tienen ORAIN pero sin telemetría activa (excluye imposibles)
+  const listaPendienteTele = maquinas.filter(m=>
+    m.estado_orain==='INSTALADO' && !m.tiene_monedero && !m.ultimo_audit
+  ).sort((a,b)=>(a.ruta||'').localeCompare(b.ruta||''));
 
   return {total,conOrain,conTelemetria,pendienteOrain,pendienteTelemetria,imposibles,sinCom4d,porRuta,listaPendienteOrain,listaPendienteTele};
 }
