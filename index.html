@@ -3532,22 +3532,28 @@ function iniciarCicloOrain(){
       if(fase===0){ duracion=20000; renderPantallaOrainGeneralOrain(body); }
       else if(fase===1){ duracion=20000; renderPantallaOrainGeneralTele(body); }
       else if(fase===2){ duracion=10000; renderPantallaOrainRankingIslas(body,'orain'); }
-      else { duracion=10000; renderPantallaOrainRankingIslas(body,'tele'); }
+      else{ duracion=10000; renderPantallaOrainRankingIslas(body,'tele'); }
     } else {
       const isla=orainIslaActiva;
       const ind=orainIndicadores(isla);
       const rutas=Object.entries(ind.porRuta).filter(([r])=>r!=='Sin ruta asignada').sort((a,b)=>a[0].localeCompare(b[0]));
-      // Cycle: resumen isla(20s) + each ruta detail(10s) + ranking rutas ORAIN(10s) + ranking rutas Tele(10s)
-      const totalFases=1+rutas.length+2;
+      // Cycle: resumen(20s) + orain list(15s) + tele list(15s) + ruta detail(10s each) + ranking orain(10s) + ranking tele(10s)
+      const totalFases=3+rutas.length+2;
       const fase=_orainPantallaFase%totalFases;
       if(fase===0){
         duracion=20000;
         renderPantallaOrainIslaResumen(body,ind,rutas,isla);
-      } else if(fase<=rutas.length){
+      } else if(fase===1){
+        duracion=15000;
+        renderPantallaOrainIslaLista(body,ind,isla,'orain');
+      } else if(fase===2){
+        duracion=15000;
+        renderPantallaOrainIslaLista(body,ind,isla,'tele');
+      } else if(fase<=2+rutas.length){
         duracion=10000;
-        const [rN,rV]=rutas[fase-1];
+        const [rN,rV]=rutas[fase-3];
         renderPantallaOrainRuta(body,rN,rV,ind,isla);
-      } else if(fase===rutas.length+1){
+      } else if(fase===3+rutas.length){
         duracion=10000;
         renderPantallaOrainRankingRutas(body,ind,isla,'orain');
       } else {
@@ -3664,6 +3670,55 @@ function renderPantallaOrainIslaResumen(body, ind, rutas, isla){
       </div>
     </div>
   </div>`;
+}
+
+// ── PANTALLA ISLA: LISTA PENDIENTES ──
+function renderPantallaOrainIslaLista(body, ind, isla, tipo){
+  const icon={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'}[isla]||'🏝️';
+  const esOrain=tipo==='orain';
+  const lista=esOrain?ind.listaPendienteOrain:ind.listaPendienteTele;
+  const titulo=esOrain?'Pendientes ORAIN':'Pendientes Telemetría';
+  const color=esOrain?'#ff8c00':'var(--amber)';
+  const total=esOrain?ind.pendienteOrain:ind.pendienteTelemetria;
+
+  body.style.overflow='hidden';
+  body.style.padding='16px 24px';
+  body.innerHTML=`
+  <div style="display:flex;flex-direction:column;height:100%;gap:14px">
+    <div style="text-align:center;flex-shrink:0">
+      <div style="font-size:13px;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;margin-bottom:4px">${icon} ${isla} — ${titulo}</div>
+      <div style="font-size:52px;font-weight:800;font-family:var(--ff);color:${color};line-height:1">${total}</div>
+      <div style="font-size:12px;color:var(--t2);margin-top:4px">máquinas pendientes</div>
+    </div>
+    <div style="flex:1;background:var(--bg2);border:0.5px solid var(--border);border-radius:12px;padding:12px;overflow:hidden;display:flex;flex-direction:column">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;flex:1;overflow:hidden">
+        ${[0,1,2,3].map(col=>{
+          const chunk=lista.filter((_,i)=>i%4===col);
+          return `<div style="overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="orain-p-scroll">
+            ${chunk.map(m=>`
+              <div style="background:var(--bg3);border-radius:6px;padding:6px 8px;border-left:2px solid ${color}">
+                <div style="font-size:10px;color:var(--t2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.ubicacion||m.nombre||'—'}</div>
+                <div style="font-size:12px;font-weight:700;color:var(--t1)">${m.cod_maq}</div>
+                ${m.ruta?`<div style="font-size:9px;color:var(--t3)">${m.ruta.replace('RUTA ZONA ','').replace('RUTA ','')}</div>`:''}
+              </div>`).join('')}
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // Autoscroll each column
+  setTimeout(()=>{
+    body.querySelectorAll('.orain-p-scroll').forEach(el=>{
+      if(el.scrollHeight<=el.clientHeight) return;
+      let dir=1;
+      setInterval(()=>{
+        el.scrollTop+=dir*0.8;
+        if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(()=>{dir=1;},2000);}
+        if(el.scrollTop<=0&&dir===-1) dir=1;
+      },40);
+    });
+  },600);
 }
 
 // ── PANTALLA GENERAL: ORAIN ──
