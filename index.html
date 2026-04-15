@@ -2945,9 +2945,9 @@ function orainIndicadores(isla){
       porRuta[ruta].imposible++;
     } else if(m.estado_orain==='INSTALADO'){
       porRuta[ruta].orain++;
-      if(m.es_telemetria && m.ultimo_audit) porRuta[ruta].telemetria++;
-      else if(m.es_telemetria && !m.ultimo_audit) porRuta[ruta].pendienteTelemetria++;
-      // bluetooth con ORAIN: no cuenta como pendiente telemetría
+      if(m.ultimo_audit) porRuta[ruta].telemetria++;
+      else if(!m.tiene_monedero) porRuta[ruta].pendienteTelemetria++;
+      // imposibles (tiene_monedero): tienen ORAIN pero no pueden tener telemetría - no cuentan como pendiente
     } else if(m.estado_orain==='PENDIENTE'){
       porRuta[ruta].pendienteOrain++;
     }
