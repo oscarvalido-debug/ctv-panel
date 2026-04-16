@@ -2017,15 +2017,38 @@ function renderAdminTecHtml(){
       <div id="av-excel-panel" style="display:none">
         <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Sube el Excel de tareas técnicas de cada isla. Reemplaza solo las averías de esa isla.</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          ${['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'].map(isla=>`
           <div style="background:var(--bg3);border-radius:10px;padding:12px">
-            <div style="font-size:12px;font-weight:700;margin-bottom:8px">${islaIcon(isla)} ${isla}</div>
-            <div class="upload-zone" onclick="document.getElementById('av-excel-${isla.replace(' ','-')}').click()" style="margin-bottom:8px;padding:10px">
-              <input type="file" id="av-excel-${isla.replace(' ','-')}" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'${isla}')">
-              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel ${isla}</div>
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px">🌋 Lanzarote</div>
+            <div class="upload-zone" onclick="document.getElementById('av-excel-Lanzarote').click()" style="margin-bottom:8px;padding:10px">
+              <input type="file" id="av-excel-Lanzarote" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'Lanzarote')">
+              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel Lanzarote</div>
             </div>
-            <div id="av-excel-preview-${isla.replace(' ','-')}"></div>
-          </div>`).join('')}
+            <div id="av-excel-preview-Lanzarote"></div>
+          </div>
+          <div style="background:var(--bg3);border-radius:10px;padding:12px">
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px">🏖️ Fuerteventura</div>
+            <div class="upload-zone" onclick="document.getElementById('av-excel-Fuerteventura').click()" style="margin-bottom:8px;padding:10px">
+              <input type="file" id="av-excel-Fuerteventura" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'Fuerteventura')">
+              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel Fuerteventura</div>
+            </div>
+            <div id="av-excel-preview-Fuerteventura"></div>
+          </div>
+          <div style="background:var(--bg3);border-radius:10px;padding:12px">
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px">🐕 Gran Canaria</div>
+            <div class="upload-zone" onclick="document.getElementById('av-excel-Gran-Canaria').click()" style="margin-bottom:8px;padding:10px">
+              <input type="file" id="av-excel-Gran-Canaria" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'Gran Canaria')">
+              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel Gran Canaria</div>
+            </div>
+            <div id="av-excel-preview-Gran-Canaria"></div>
+          </div>
+          <div style="background:var(--bg3);border-radius:10px;padding:12px">
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px">🏔️ Tenerife</div>
+            <div class="upload-zone" onclick="document.getElementById('av-excel-Tenerife').click()" style="margin-bottom:8px;padding:10px">
+              <input type="file" id="av-excel-Tenerife" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'Tenerife')">
+              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel Tenerife</div>
+            </div>
+            <div id="av-excel-preview-Tenerife"></div>
+          </div>
         </div>
       </div>
       <div class="sec-lbl" style="margin-top:12px">Averías activas</div>
@@ -2315,7 +2338,7 @@ function procesarExcelAverias(input, previewId){
   const reader=new FileReader();
   reader.onload=e=>{
     try{
-      if(window._islaForzadaExcel) islaDetectada=window._islaForzadaExcel;
+      // isla forzada se aplica via _islaForzadaExcel en la declaracion de islaDetectada
       const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
