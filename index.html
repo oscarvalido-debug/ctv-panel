@@ -2015,12 +2015,18 @@ function renderAdminTecHtml(){
       </div>
       </div><!-- end av-manual-panel -->
       <div id="av-excel-panel" style="display:none">
-        <div class="upload-zone" onclick="document.getElementById('av-excel-input').click()" style="margin-bottom:10px">
-          <input type="file" id="av-excel-input" accept=".xlsx,.xls,.csv" onchange="procesarExcelAverias(this)">
-          <div class="upload-title">Subir Excel de tareas técnicas</div>
-          <div class="upload-sub">Formato: fecha, refexterna, titulo, centro, maquina, operacion, asignadaa, notas, horacontactada</div>
+        <div style="font-size:12px;color:var(--t2);margin-bottom:12px">Sube el Excel de tareas técnicas de cada isla. Reemplaza solo las averías de esa isla.</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          ${['Lanzarote','Fuerteventura','Gran Canaria','Tenerife'].map(isla=>`
+          <div style="background:var(--bg3);border-radius:10px;padding:12px">
+            <div style="font-size:12px;font-weight:700;margin-bottom:8px">${islaIcon(isla)} ${isla}</div>
+            <div class="upload-zone" onclick="document.getElementById('av-excel-${isla.replace(' ','-')}').click()" style="margin-bottom:8px;padding:10px">
+              <input type="file" id="av-excel-${isla.replace(' ','-')}" accept=".xlsx,.xls,.csv" onchange="procesarExcelAveriasIsla(this,'${isla}')">
+              <div style="font-size:12px;color:var(--t2)">📂 Subir Excel ${isla}</div>
+            </div>
+            <div id="av-excel-preview-${isla.replace(' ','-')}"></div>
+          </div>`).join('')}
         </div>
-        <div id="av-excel-preview"></div>
       </div>
       <div class="sec-lbl" style="margin-top:12px">Averías activas</div>
       <div id="averias-activas-list">${renderAveriasAdmin()}</div>
@@ -2296,17 +2302,26 @@ function determinarUrgencia(operacion, titulo){
   return 'baja';
 }
 
-function procesarExcelAverias(input){
+function procesarExcelAveriasIsla(input, islaForzada){
+  // Wrap: force isla regardless of file content
+  _islaForzadaExcel = islaForzada;
+  const previewId = 'av-excel-preview-'+islaForzada.replace(' ','-');
+  procesarExcelAverias(input, previewId);
+}
+
+function procesarExcelAverias(input, previewId){
+  previewId = previewId || 'av-excel-preview';
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
     try{
+      if(window._islaForzadaExcel) islaDetectada=window._islaForzadaExcel;
       const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
       // Find header row (contains 'fecha' or 'titulo')
       let headerIdx = allRows.findIndex(row=>row && row.some(c=>String(c||'').toLowerCase()==='fecha'||String(c||'').toLowerCase()==='titulo'));
-      if(headerIdx===-1){ document.getElementById('av-excel-preview').innerHTML='<div style="color:var(--red);padding:12px">No se encontró la cabecera. El archivo debe tener columnas: fecha, titulo, centro, maquina, asignadaa</div>'; return; }
+      if(headerIdx===-1){ document.getElementById(previewId||'av-excel-preview').innerHTML='<div style="color:var(--red);padding:12px">No se encontró la cabecera. El archivo debe tener columnas: fecha, titulo, centro, maquina, asignadaa</div>'; return; }
       const headers = allRows[headerIdx].map(h=>String(h||'').toLowerCase().trim());
       const dataRows = allRows.slice(headerIdx+1).filter(row=>row&&row.some(c=>c!==null&&c!==''));
       
@@ -2318,8 +2333,8 @@ function procesarExcelAverias(input){
       const averiasParsed = [];
       const noAsignados = [];
       
-      // Detectar isla del archivo desde la cabecera "Delegación: LANZAROTE"
-      let islaDetectada = null;
+      // Detectar isla — primero usa la forzada, luego busca en cabecera
+      let islaDetectada = window._islaForzadaExcel || null;
       for(const row of allRows.slice(0, headerIdx)){
         const celda = String(row[0]||'').toLowerCase();
         if(celda.includes('delegaci')){ 
@@ -2330,6 +2345,17 @@ function procesarExcelAverias(input){
           else if(txt.includes('TENERIFE')||txt.includes('tenerife')) islaDetectada='Tenerife';
           break;
         }
+      }
+
+      // Función para detectar isla desde la ruta (columna 'ruta')
+      function islaDesdeRuta(ruta){
+        const r=(ruta||'').toUpperCase();
+        if(r.includes('ZONA ARRECIFE')||r.includes('ZONA NORTE')||r.includes('ZONA SUR')) return 'Lanzarote';
+        if(r.includes('SANTA CRUZ')||r.includes('LAS PALMAS')||r.includes('MEDIANIAS')) return 'Gran Canaria';
+        if(r.includes('LALUMA')||r.includes('CENTRO')&&!r.includes('ZONA')) return 'Fuerteventura';
+        if(r.includes('NORTE')&&!r.includes('ZONA')&&!r.includes('LALUMA')) return 'Tenerife';
+        if(r.includes('SUR')&&!r.includes('ZONA')&&!r.includes('LALUMA')) return 'Tenerife';
+        return null;
       }
       
       dataRows.forEach(row=>{
@@ -2357,7 +2383,7 @@ function procesarExcelAverias(input){
         averiasParsed.push({
           tecnico_id: tec.id,
           tecnico_nombre: tec.nombre,
-          isla: islaDetectada || tec.isla,
+          isla: islaDetectada || islaDesdeRuta(col(row,'ruta')) || tec.isla,
           urgencia: determinarUrgencia(operacion, titulo),
           maquina_numero: refext || maquina,
           maquina_nombre: centro || maquina,
@@ -2402,10 +2428,10 @@ function procesarExcelAverias(input){
         </button>`;
       }
       
-      document.getElementById('av-excel-preview').innerHTML=preview;
+      document.getElementById(previewId||'av-excel-preview').innerHTML=preview;
     }catch(err){
       console.error(err);
-      document.getElementById('av-excel-preview').innerHTML='<div style="color:var(--red);padding:12px">Error leyendo el archivo: '+err.message+'</div>';
+      document.getElementById(previewId||'av-excel-preview').innerHTML='<div style="color:var(--red);padding:12px">Error leyendo el archivo: '+err.message+'</div>';
     }
   };
   reader.readAsBinaryString(file);
@@ -2431,8 +2457,8 @@ async function aplicarExcelAverias(){
     }
     await cargarAverias();
   await cargarCambiosMaquina();
-    document.getElementById('av-excel-preview').innerHTML='';
-    document.getElementById('av-excel-input').value='';
+    document.getElementById(previewId||'av-excel-preview').innerHTML='';
+    if(input) input.value=''; window._islaForzadaExcel=null;
     const list=document.getElementById('averias-activas-list');
     if(list) list.innerHTML=renderAveriasAdmin();
     setSyncStatus('ok','Averías importadas');
