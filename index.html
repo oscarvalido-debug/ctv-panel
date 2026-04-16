@@ -4539,51 +4539,71 @@ function iniciarCicloRutas(){
 }
 
 function renderPantallaTodasRutas(body,rutas,hoy,isla){
-  const errIsla=new Set(erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina));
   const today=new Date().toISOString().slice(0,10);
   const cols=Math.min(rutas.length,4);
-  body.style.overflow='hidden';
-  body.style.display='grid';
-  body.style.gridTemplateColumns='repeat('+cols+',1fr)';
-  body.style.gap='12px';
-  body.style.alignItems='stretch';
+  body.style.cssText='overflow:hidden;display:grid;grid-template-columns:repeat('+cols+',1fr);gap:12px;align-items:stretch';
+
   body.innerHTML=rutas.map(function(r){
-    const maquinas=r[hoy]||[];
-    const datos=datosDiaRutas.find(function(d){return d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today;})||{};
-    const maqErr=maquinas.filter(function(m){return errIsla.has(m.cod);}).length;
-    const maqPrev=maquinas.length;
-    const maqReal=datos.maq_realizadas||0;
-    const listHtml=maquinas.map(function(m,i){
-      const err=errIsla.has(m.cod);
-      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:7px;background:'+(err?'rgba(224,85,85,.12)':'var(--bg3)')+';border:0.5px solid '+(err?'rgba(224,85,85,.3)':'transparent')+'">'
-        +'<span style="font-size:10px;color:var(--t3);min-width:16px">'+(i+1)+'</span>'
-        +'<span style="font-size:12px;font-weight:700;color:'+(err?'var(--red)':'var(--t1)')+';flex-shrink:0">'+m.cod+'</span>'
-        +'<span style="font-size:11px;color:'+(err?'var(--red)':'var(--t2)')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.nombre+'</span>'
-        +(err?'<span style="font-size:12px;animation:blink 1s infinite">⚠</span>':'')
+    var maquinas=r[hoy]||[];
+    var datos=datosDiaRutas.find(function(d){return d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today;})||{};
+    var errMaq=erroresPrecios.filter(function(e){return e.isla===isla&&maquinas.some(function(m){return m.cod===e.cod_maquina;});});
+    var errCods=new Set(errMaq.map(function(e){return e.cod_maquina;}));
+    var maqErr=errCods.size;
+    var maqPrev=maquinas.length;
+    var maqReal=datos.maq_realizadas||0;
+
+    var listHtml=maquinas.map(function(m){
+      var err=errCods.has(m.cod);
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:'+(err?'rgba(224,85,85,.12)':'var(--bg3)')+';border:0.5px solid '+(err?'rgba(224,85,85,.35)':'transparent')+'">'
+        +(err?'<span style="animation:blink 1s infinite;font-size:13px;flex-shrink:0">⚠</span>':'')
+        +'<span style="font-size:13px;font-weight:700;color:'+(err?'var(--red)':'var(--t2)')+';flex-shrink:0;min-width:64px">'+m.cod+'</span>'
+        +'<span style="font-size:15px;font-weight:700;color:'+(err?'var(--red)':'var(--t1)')+';flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+m.nombre+'</span>'
         +'</div>';
     }).join('');
-    return '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden">'
-      +'<div style="font-size:16px;font-weight:800;font-family:var(--ff);color:var(--blue);flex-shrink:0">'+r.nombre_ruta+'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex-shrink:0">'
-        +'<div style="background:var(--bg3);border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:var(--blue)">'+maqPrev+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Previstas</div></div>'
-        +'<div style="background:var(--bg3);border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:'+(maqReal>=maqPrev?'var(--green)':'var(--amber)')+'">'+maqReal+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Realizadas</div></div>'
-        +'<div style="background:'+(maqErr>0?'rgba(224,85,85,.15)':'var(--bg3)')+';border-radius:8px;padding:7px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--ff);color:'+(maqErr>0?'var(--red)':'var(--green)')+'">'+maqErr+'</div><div style="font-size:8px;color:var(--t3);text-transform:uppercase;margin-top:2px">Err.precio</div></div>'
+
+    var errHtml=errMaq.map(function(e){
+      var discs=e.discrepancias||[];
+      return '<div style="background:rgba(224,85,85,.08);border:0.5px solid rgba(224,85,85,.3);border-radius:8px;padding:10px;margin-bottom:6px">'
+        +'<div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:6px">🚫 '+e.cod_maquina+' — '+(e.centro||'')+'</div>'
+        +discs.map(function(d){
+          return '<div style="display:flex;justify-content:space-between;padding:3px 6px;background:rgba(224,85,85,.06);border-radius:5px;margin-bottom:3px">'
+            +'<span style="font-size:11px;font-weight:600;color:var(--t1);flex:1">'+d.articulo+'</span>'
+            +'<span style="font-size:11px;color:var(--red);flex-shrink:0;margin-left:8px">Audit: '+d.precio_audit.toFixed(2)+'€ · Debería: '+d.precio_correcto.toFixed(2)+'€</span>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+    }).join('');
+
+    return '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden">'
+      +'<div style="font-size:18px;font-weight:800;font-family:var(--ff);color:var(--blue);flex-shrink:0">'+r.nombre_ruta+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0">'
+        +'<div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--blue)">'+maqPrev+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:3px">Previstas</div></div>'
+        +'<div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px;font-weight:800;font-family:var(--ff);color:'+(maqReal>0&&maqReal>=maqPrev?'var(--green)':'var(--amber)')+'">'+maqReal+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:3px">Realizadas</div></div>'
+        +'<div style="background:'+(maqErr>0?'rgba(224,85,85,.15)':'var(--bg3)')+';border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px;font-weight:800;font-family:var(--ff);color:'+(maqErr>0?'var(--red)':'var(--green)')+'">'+maqErr+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:3px">Err.precio</div></div>'
       +'</div>'
-      +'<div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll">'+listHtml+'</div>'
+      +'<div style="flex:2;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll-maq">'+listHtml+'</div>'
+      +(errHtml?'<div style="border-top:0.5px solid rgba(224,85,85,.3);padding-top:8px;flex-shrink:0">'
+        +'<div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">⚠ Detalle errores de precio</div>'
+        +'<div style="flex:1;max-height:220px;overflow-y:auto;display:flex;flex-direction:column" class="rutas-scroll-err">'+errHtml+'</div>'
+        +'</div>':'')
       +'</div>';
   }).join('');
+
   setTimeout(function(){
-    document.querySelectorAll('.rutas-scroll').forEach(function(el){
-      if(el.scrollHeight<=el.clientHeight) return;
-      var dir=1;
-      setInterval(function(){
-        el.scrollTop+=dir*0.8;
-        if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(function(){dir=1;},3000);}
-        if(el.scrollTop<=0&&dir===-1) dir=1;
-      },40);
+    ['rutas-scroll-maq','rutas-scroll-err'].forEach(function(cls){
+      document.querySelectorAll('.'+cls).forEach(function(el){
+        if(el.scrollHeight<=el.clientHeight) return;
+        var dir=1;
+        setInterval(function(){
+          el.scrollTop+=dir*0.8;
+          if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(function(){dir=1;},3000);}
+          if(el.scrollTop<=0&&dir===-1) dir=1;
+        },40);
+      });
     });
-  },600);
+  },800);
 }
+
 
 function renderPantallaRutaDetalle(body, r, hoy, isla){
   const maquinas=r[hoy]||[];
