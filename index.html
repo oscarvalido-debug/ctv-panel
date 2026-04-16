@@ -2575,51 +2575,75 @@ function iniciarCicloTec(){
 
   try{
   if(isGeneral){
-    const totalFases = ISLAS_TEC_LIST.length + 2; // 4 islands + movimientos + resumen
+    // Cycle: resumen(5s) then for each island: averias(5s) + movimientos(5s)
+    const totalFases = 1 + ISLAS_TEC_LIST.length * 2; // resumen + 2 per island
     const fase = _tecFase % totalFases;
-    if(fase < ISLAS_TEC_LIST.length){
-      // Show each island's tecnico view
-      duracion=15000;
-      const islaTemp = ISLAS_TEC_LIST[fase];
-      const body=document.getElementById('pantalla-tec-body');
-      if(body){
-        body.style.gridTemplateColumns='repeat(4,1fr)';
-        body.style.alignItems='stretch';
-        body.style.overflow='hidden';
-        body.style.padding='12px';
-        body.style.gap='10px';
-        // Temporarily render for this island
+    const body=document.getElementById('pantalla-tec-body');
+
+    if(fase===0){
+      // Resumen general todas las islas
+      duracion=5000;
+      renderPantallaTecResumen();
+    } else {
+      const islaIdx = Math.floor((fase-1)/2);
+      const isSubFase = (fase-1)%2; // 0=averias, 1=movimientos
+      const islaTemp = ISLAS_TEC_LIST[islaIdx];
+      duracion=5000;
+
+      if(isSubFase===0){
+        // Averias de esta isla
+        if(body){
+          body.style.gridTemplateColumns='repeat(4,1fr)';
+          body.style.alignItems='stretch';
+          body.style.overflow='hidden';
+          body.style.padding='12px';
+          body.style.gap='10px';
+          const savedIsla=islaActivaTec;
+          islaActivaTec=islaTemp;
+          renderPantallaTec();
+          islaActivaTec=savedIsla;
+          // Big island label
+          const old=body.querySelector('.isla-overlay-label');
+          if(old) old.remove();
+          const label=document.createElement('div');
+          label.className='isla-overlay-label';
+          const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+          label.style.cssText='position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#ff8c00;font-size:22px;font-weight:800;padding:6px 24px;border-radius:20px;font-family:var(--ff);z-index:10;white-space:nowrap';
+          label.textContent=iconMap[islaTemp]+' '+islaTemp+' — Averías';
+          body.style.position='relative';
+          body.appendChild(label);
+          setTimeout(()=>{
+            document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
+              if(col.scrollHeight<=col.clientHeight) return;
+              let dir=1;
+              const id=setInterval(()=>{
+                col.scrollTop+=dir*1.2;
+                if(col.scrollTop+col.clientHeight>=col.scrollHeight-2){ dir=-1; setTimeout(()=>{ dir=1; },1000); }
+                if(col.scrollTop<=0&&dir===-1) dir=1;
+              },40);
+              _tecScrollIntervals.push(id);
+            });
+          },300);
+        }
+      } else {
+        // Movimientos de esta isla
         const savedIsla=islaActivaTec;
         islaActivaTec=islaTemp;
-        renderPantallaTec();
+        renderPantallaTecMovimientos();
         islaActivaTec=savedIsla;
-        // Add island label overlay
-        const label=document.createElement('div');
-        label.style.cssText='position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#ff8c00;font-size:13px;font-weight:700;padding:4px 14px;border-radius:20px;font-family:var(--ff);z-index:10';
-        const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
-        label.textContent=iconMap[islaTemp]+' '+islaTemp;
-        body.style.position='relative';
-        body.appendChild(label);
-        // Auto-scroll
-        setTimeout(()=>{
-          document.querySelectorAll('.tec-pantalla-scroll').forEach(col=>{
-            if(col.scrollHeight<=col.clientHeight) return;
-            let dir=1;
-            const id=setInterval(()=>{
-              col.scrollTop+=dir*1;
-              if(col.scrollTop+col.clientHeight>=col.scrollHeight-2){ dir=-1; setTimeout(()=>{ dir=1; },1500); }
-              if(col.scrollTop<=0&&dir===-1) dir=1;
-            },40);
-            _tecScrollIntervals.push(id);
-          });
-        },600);
+        // Add label
+        if(body){
+          const old=body.querySelector('.isla-overlay-label');
+          if(old) old.remove();
+          const label=document.createElement('div');
+          label.className='isla-overlay-label';
+          const iconMap={'Lanzarote':'🌋','Fuerteventura':'🏖️','Gran Canaria':'🐕','Tenerife':'🏔️'};
+          label.style.cssText='position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#ff8c00;font-size:22px;font-weight:800;padding:6px 24px;border-radius:20px;font-family:var(--ff);z-index:10;white-space:nowrap';
+          label.textContent=iconMap[islaTemp]+' '+islaTemp+' — Movimientos';
+          body.style.position='relative';
+          body.appendChild(label);
+        }
       }
-    } else if(fase===ISLAS_TEC_LIST.length){
-      duracion=10000;
-      renderPantallaTecMovimientos();
-    } else {
-      duracion=20000;
-      renderPantallaTecResumen();
     }
   } else {
     const fase=_tecFase%4;
@@ -2672,10 +2696,12 @@ function renderPantallaTecMovimientos(){
   body.style.padding='16px 24px';
   body.style.gap='0';
 
-  const total=movimientosMaquina.length;
-  const instalaciones=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='instalacion');
-  const retiradas=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='retirada');
-  const cambios=movimientosMaquina.filter(m=>(m.tipo_movimiento||'cambio')==='cambio');
+  const isGenMov = islaActivaTec==='general';
+  const movsBase = isGenMov ? movimientosMaquina : movimientosMaquina.filter(m=>m.isla===islaActivaTec);
+  const total=movsBase.length;
+  const instalaciones=movsBase.filter(m=>(m.tipo_movimiento||'cambio')==='instalacion');
+  const retiradas=movsBase.filter(m=>(m.tipo_movimiento||'cambio')==='retirada');
+  const cambios=movsBase.filter(m=>(m.tipo_movimiento||'cambio')==='cambio');
 
   function buildCard(c, forzarTipo){
     const tipo=forzarTipo||(c.tipo_movimiento||'cambio');
