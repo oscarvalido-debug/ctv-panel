@@ -4067,6 +4067,12 @@ function salirRutas(){
   moduloActivo=null;
 }
 
+function pedirClaveAdminRutas(){
+  const clave=prompt('Contraseña admin:');
+  if(clave==='admin123') abrirAdminRutas();
+  else if(clave!==null) toast('Contraseña incorrecta');
+}
+
 function abrirAdminRutas(){
   document.getElementById('rutas-admin').style.display='block';
   renderRutasListaAdmin();
@@ -4164,7 +4170,8 @@ function renderRutasGeneral(vista){
 }
 
 function renderRutasIsla(vista, isla){
-  const hoy=DIA_HOY;
+  if(!window.diaSeleccionadoRutas) window.diaSeleccionadoRutas=DIA_HOY;
+  const hoy=window.diaSeleccionadoRutas;
   const diaLabel={'lunes':'Lunes','martes':'Martes','miercoles':'Miércoles','jueves':'Jueves','viernes':'Viernes'}[hoy]||hoy;
   const rutas=rutasSemanales.filter(r=>r.isla===isla&&r[hoy]&&r[hoy].length>0);
   const errIsla=new Set(erroresPrecios.filter(e=>e.isla===isla).map(e=>e.cod_maquina));
@@ -4184,7 +4191,8 @@ function renderRutasIsla(vista, isla){
 }
 
 function buildRutaCard(r, hoy, errIsla, today, isla){
-  const maquinas=r[hoy]||[];
+  const diaEfectivo=window.diaSeleccionadoRutas||hoy;
+  const maquinas=r[diaEfectivo]||[];
   const datos=datosDiaRutas.find(d=>d.isla===isla&&d.nombre_ruta===r.nombre_ruta&&d.fecha===today)||{};
   const maqErr=maquinas.filter(m=>errIsla.has(m.cod)).length;
   const maqPrev=maquinas.length;
@@ -4236,17 +4244,42 @@ function buildRutaCard(r, hoy, errIsla, today, isla){
       </div>
     </div>
     <!-- Lista máquinas con autoscroll -->
-    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em">${maquinas.length} máquinas programadas</div>
-    <div style="height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll">
+    <div style="font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.06em;margin-top:4px">${maquinas.length} máquinas programadas hoy</div>
+    <div style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px" class="rutas-scroll">
       ${maquinas.map(m=>{
-        const err=errIsla.has(m.cod);
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:${err?'rgba(224,85,85,.15)':'var(--bg3)'};border:0.5px solid ${err?'rgba(224,85,85,.4)':'transparent'}">
-          ${err?'<span style="animation:blink 1s infinite;font-size:12px">⚠</span>':''}
-          <span style="font-size:11px;font-weight:700;color:${err?'var(--red)':'var(--t1)'};flex-shrink:0">${m.cod}</span>
-          <span style="font-size:11px;color:${err?'var(--red)':'var(--t2)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nombre}</span>
+        const errData=erroresPrecios.find(e=>e.cod_maquina===m.cod&&e.isla===isla);
+        const err=!!errData;
+        const tipocon=errData?.tipo_conectividad||'';
+        const tipoIcon=tipocon==='BLUETOOTH'?'📶':tipocon.includes('TELE')||tipocon.includes('ORAIN')?'📡':'';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;background:${err?'rgba(224,85,85,.12)':'var(--bg3)'};border:0.5px solid ${err?'rgba(224,85,85,.35)':'transparent'}">
+          ${err?'<span style="animation:blink 1s infinite;font-size:13px;flex-shrink:0">⚠</span>':'<span style="font-size:11px;color:var(--t3);flex-shrink:0;min-width:16px"></span>'}
+          <span style="font-size:12px;font-weight:700;color:${err?'var(--red)':'var(--t2)'};flex-shrink:0;min-width:60px">${m.cod}</span>
+          <span style="font-size:14px;font-weight:700;color:${err?'var(--red)':'var(--t1)'};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.nombre}</span>
+          ${tipoIcon?`<span style="font-size:11px;flex-shrink:0" title="${tipocon}">${tipoIcon}</span>`:''}
         </div>`;
       }).join('')}
     </div>
+    <!-- Detalle errores de precio -->
+    ${(()=>{
+      const maqsConError=maquinas.filter(m=>erroresPrecios.some(e=>e.cod_maquina===m.cod&&e.isla===isla&&e.discrepancias&&e.discrepancias.length));
+      if(!maqsConError.length) return '';
+      return `<div style="margin-top:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">⚠ Detalle errores de precio</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${maqsConError.map(m=>{
+            const errData=erroresPrecios.find(e=>e.cod_maquina===m.cod&&e.isla===isla);
+            const discs=errData?.discrepancias||[];
+            return `<div style="background:rgba(224,85,85,.08);border:0.5px solid rgba(224,85,85,.3);border-radius:8px;padding:10px">
+              <div style="font-size:13px;font-weight:800;color:var(--red);margin-bottom:6px">🚫 ${m.cod} — ${errData?.centro||m.nombre}</div>
+              ${discs.map(d=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:rgba(224,85,85,.06);border-radius:5px;margin-bottom:3px">
+                <span style="font-size:11px;font-weight:600;color:var(--t1);flex:1">${d.articulo}</span>
+                <span style="font-size:11px;color:var(--red);flex-shrink:0;margin-left:8px">Audit: ${d.precio_audit.toFixed(2)}€ · Debería: ${d.precio_correcto.toFixed(2)}€</span>
+              </div>`).join('')}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    })()}
   </div>`;
 }
 
@@ -4311,51 +4344,67 @@ async function procesarExcelPrecios(input){
   const file=input.files[0]; if(!file) return;
   const isla=document.getElementById('precios-isla-select').value;
   const preview=document.getElementById('precios-upload-preview');
-  preview.innerHTML='<div style="color:var(--amber);font-size:12px">⏳ Procesando...</div>';
+  preview.innerHTML='<div style="color:var(--amber);font-size:12px">⏳ Procesando archivo grande...</div>';
 
   const reader=new FileReader();
   reader.onload=async e=>{
     const wb=XLSX.read(e.target.result,{type:'binary',cellDates:false});
     const ws=wb.Sheets[wb.SheetNames[0]];
-    const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+    const allRows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
 
-    // Find header row (has 'Máquina')
-    const hIdx=allRows.findIndex(r=>r&&r.some(c=>String(c||'').toLowerCase().includes('máquina')));
+    // New format: header on row index 4 (fila 5)
+    // Cols: A=delegacion(0), F=centro(5), J=maquina(9), K=tipo_conectividad(10),
+    //       O=nomarti(14), P=vc_preciomoneda(15), T=audit_precio_moneda(19)
+    const hIdx=allRows.findIndex(r=>r&&r.some(c=>String(c||'').toLowerCase()==='maquina'));
     if(hIdx===-1){ preview.innerHTML='<div style="color:var(--red);font-size:12px">No se encontró cabecera</div>'; return; }
 
-    const headers=allRows[hIdx].map(h=>String(h||'').toLowerCase().trim());
-    const maqIdx=headers.findIndex(h=>h.includes('máquina')||h==='maquina');
-    const difIdx=headers.findIndex(h=>h.includes('dif'));
-    const pdvIdx=0;
-    const ubicIdx=headers.findIndex(h=>h.includes('ubic'));
-    const centroIdx=headers.findIndex(h=>h.includes('centro'));
+    // Filter to isla
+    const islaMap={'Lanzarote':'LANZAROTE','Fuerteventura':'FUERTEVENTURA','Gran Canaria':'GRAN CANARIA','Tenerife':'TENERIFE'};
+    const islaUpper=islaMap[isla]||isla.toUpperCase();
 
-    const errores=[];
+    // Group by machine: collect all discrepancies per machine
+    const maqMap={};
+    let totalRows=0;
     allRows.slice(hIdx+1).forEach(row=>{
-      if(!row) return;
-      const dif=row[difIdx];
-      if(dif===true||dif===1||String(dif||'').toLowerCase()==='true'){
-        const cod=String(row[maqIdx]||'').trim();
-        if(cod) errores.push({
+      if(!row||!row[9]) return;
+      if(String(row[0]||'').toUpperCase()!==islaUpper) return;
+      totalRows++;
+      const cod=String(row[9]).trim();
+      const pCorrecto=parseFloat(row[15])||0;
+      const pAudit=parseFloat(row[19])||0;
+      const diff=Math.abs(pCorrecto-pAudit);
+      if(diff<0.001) return; // no discrepancy
+
+      if(!maqMap[cod]){
+        maqMap[cod]={
           isla, cod_maquina:cod,
-          pdv:String(row[pdvIdx]||'').trim(),
-          ubicacion:String(row[ubicIdx]||'').trim(),
-          centro:String(row[centroIdx]||'').trim(),
+          centro:String(row[5]||'').trim(),
+          tipo_conectividad:String(row[10]||'').trim(),
+          discrepancias:[],
           updated_at:new Date().toISOString()
-        });
+        };
       }
+      maqMap[cod].discrepancias.push({
+        articulo:String(row[14]||'').trim(),
+        precio_correcto:pCorrecto,
+        precio_audit:pAudit,
+        diferencia:Math.round((pAudit-pCorrecto)*100)/100
+      });
     });
 
-    // Delete existing for this isla and reinsert
+    const errores=Object.values(maqMap);
+    preview.innerHTML=`<div style="color:var(--amber);font-size:12px">⏳ Guardando ${errores.length} máquinas con errores...</div>`;
+
+    // Delete and reinsert
     await sb.from('errores_precio').delete().eq('isla',isla);
     if(errores.length){
-      for(let i=0;i<errores.length;i+=200){
-        await sb.from('errores_precio').insert(errores.slice(i,i+200));
+      for(let i=0;i<errores.length;i+=100){
+        await sb.from('errores_precio').insert(errores.slice(i,i+100));
       }
     }
     await cargarErroresPrecios();
     renderRutasVista();
-    preview.innerHTML=`<div style="color:var(--green);font-size:12px">✓ ${errores.length} máquinas con error de precio guardadas</div>`;
+    preview.innerHTML=`<div style="color:var(--green);font-size:12px">✓ ${errores.length} máquinas con error · ${totalRows} filas procesadas</div>`;
     toast('Errores de precio actualizados');
     input.value='';
   };
@@ -4789,7 +4838,7 @@ function renderPantallaRutaDetalle(body, r, hoy, isla){
     <div class="topbar-right">
       <button class="btn-t" onclick="salirRutas()" style="border-color:rgba(61,207,142,.3);color:var(--green)">← Inicio</button>
       <button class="btn-t gold" onclick="activarPantallaRutas()">📺 Pantalla</button>
-      <button class="btn-t" onclick="abrirAdminRutas()" id="rutas-admin-btn">Admin</button>
+      <button class="btn-t" onclick="pedirClaveAdminRutas()" id="rutas-admin-btn">Admin</button>
     </div>
   </div>
   <!-- Tabs islas -->
