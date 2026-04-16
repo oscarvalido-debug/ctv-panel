@@ -13,6 +13,24 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
+:root.modo-sol{
+  --bg1:#f0f2f5;
+  --bg2:#ffffff;
+  --bg3:#e8ebf0;
+  --bg4:#d8dce5;
+  --t1:#0f1117;
+  --t2:#3a4050;
+  --t3:#6b7280;
+  --border:rgba(0,0,0,.12);
+  --border2:rgba(0,0,0,.18);
+  --green:#16a34a;
+  --amber:#b45309;
+  --red:#dc2626;
+  --blue:#2563eb;
+  --purple:#7c3aed;
+  --fb:'ClashDisplay',system-ui,sans-serif;
+  --ff:'ClashDisplay',system-ui,sans-serif;
+}
 :root{
   --bg1:#0f0f13;--bg2:#17171e;--bg3:#1e1e28;--bg4:#25252f;
   --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.14);
@@ -372,6 +390,9 @@ html,body{height:100%;background:var(--bg1);color:var(--t1);font-family:var(--fb
 </div>
 
 <!-- SELECTOR REPONEDORES / TÉCNICOS -->
+<button id="tema-toggle" onclick="toggleTema()" 
+  style="position:fixed;top:14px;right:14px;z-index:9999;width:44px;height:44px;border-radius:50%;border:0.5px solid var(--border2);background:var(--bg2);font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.2)"
+  title="Modo claro/oscuro">🌙</button>
 <div id="selector-screen" style="position:fixed;inset:0;background:var(--bg1);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:24px">
   <div style="text-align:center;margin-bottom:8px">
     <div style="font-size:28px;font-weight:800;font-family:var(--ff);letter-spacing:-.03em;color:var(--t1)">CTV</div>
@@ -4651,7 +4672,11 @@ function renderPantallaTodasRutas(body,rutas,hoy,isla){
     }).join('');
 
     return '<div style="background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;overflow:hidden">'
-      +'<div style="font-size:18px;font-weight:800;font-family:var(--ff);color:var(--blue);flex-shrink:0">'+r.nombre_ruta+'</div>'
+      +(function(){
+        var cols=['#5b9cf6','#3dcf8e','#f0a030','#e055a5'];
+        var col=cols[rutas.indexOf(r)%cols.length];
+        return '<div style="font-size:20px;font-weight:800;font-family:var(--ff);color:'+col+';flex-shrink:0;border-left:4px solid '+col+';padding-left:10px">'+r.nombre_ruta+'</div>';
+      })()
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0">'
         +'<div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px;font-weight:800;font-family:var(--ff);color:var(--blue)">'+maqPrev+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:3px">Previstas</div></div>'
         +'<div style="background:var(--bg3);border-radius:10px;padding:10px;text-align:center"><div style="font-size:28px;font-weight:800;font-family:var(--ff);color:'+(maqReal>0&&maqReal>=maqPrev?'var(--green)':'var(--amber)')+'">'+maqReal+'</div><div style="font-size:9px;color:var(--t3);text-transform:uppercase;margin-top:3px">Realizadas</div></div>'
@@ -4669,11 +4694,16 @@ function renderPantallaTodasRutas(body,rutas,hoy,isla){
     ['rutas-scroll-maq','rutas-scroll-err'].forEach(function(cls){
       document.querySelectorAll('.'+cls).forEach(function(el){
         if(el.scrollHeight<=el.clientHeight) return;
-        var dir=1;
+        var dir=1, paused=false;
         setInterval(function(){
+          if(paused) return;
           el.scrollTop+=dir*0.8;
-          if(el.scrollTop+el.clientHeight>=el.scrollHeight-2){dir=-1;setTimeout(function(){dir=1;},3000);}
-          if(el.scrollTop<=0&&dir===-1) dir=1;
+          if(el.scrollTop+el.clientHeight>=el.scrollHeight-2 && dir===1){
+            dir=-1; paused=true; setTimeout(function(){ paused=false; },2500);
+          }
+          if(el.scrollTop<=1 && dir===-1){
+            dir=1; paused=true; setTimeout(function(){ paused=false; },2000);
+          }
         },40);
       });
     });
@@ -4764,6 +4794,29 @@ function renderPantallaRutaDetalle(body, r, hoy, isla){
     }
   },800);
 }
+
+function toggleTema(){
+  const root=document.documentElement;
+  const btn=document.getElementById('tema-toggle');
+  if(root.classList.contains('modo-sol')){
+    root.classList.remove('modo-sol');
+    if(btn) btn.textContent='🌙';
+    localStorage.setItem('ctv-tema','luna');
+  } else {
+    root.classList.add('modo-sol');
+    if(btn) btn.textContent='☀️';
+    localStorage.setItem('ctv-tema','sol');
+  }
+}
+// Restore theme on load
+(function(){
+  const t=localStorage.getItem('ctv-tema');
+  if(t==='sol'){
+    document.documentElement.classList.add('modo-sol');
+    const btn=document.getElementById('tema-toggle');
+    if(btn) btn.textContent='☀️';
+  }
+})();
 
 // ORAIN navigation handled in entrarModulo directly
 
