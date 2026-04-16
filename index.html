@@ -2337,6 +2337,7 @@ function procesarExcelAverias(input, previewId){
   const file=input.files[0]; if(!file)return;
   const reader=new FileReader();
   reader.onload=e=>{
+    var islaDetectada = window._islaForzadaExcel || null;
     try{
       // isla forzada se aplica via _islaForzadaExcel en la declaracion de islaDetectada
       const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
@@ -2357,7 +2358,7 @@ function procesarExcelAverias(input, previewId){
       const noAsignados = [];
       
       // Detectar isla — primero usa la forzada, luego busca en cabecera
-      let islaDetectada = window._islaForzadaExcel || null;
+      // islaDetectada ya declarada antes del try
       for(const row of allRows.slice(0, headerIdx)){
         const celda = String(row[0]||'').toLowerCase();
         if(celda.includes('delegaci')){ 
@@ -2480,8 +2481,8 @@ async function aplicarExcelAverias(){
     }
     await cargarAverias();
   await cargarCambiosMaquina();
-    document.getElementById(previewId||'av-excel-preview').innerHTML='';
-    if(input) input.value=''; window._islaForzadaExcel=null;
+    // preview cleared by island-specific div
+    window._islaForzadaExcel=null;
     const list=document.getElementById('averias-activas-list');
     if(list) list.innerHTML=renderAveriasAdmin();
     setSyncStatus('ok','Averías importadas');
